@@ -2,12 +2,12 @@
 
 GitHub Copilot의 **Gemini 4 모델 4종**(Argon · Carbon · Hydrogen · Neon)을 Claude Code에서 쓰는 실습 저장소입니다. 로컬 브리지가 Claude Code의 Anthropic Messages API 요청을 Microsoft Copilot SDK(`@microsoft/copilot-sdk`, 구 GitHub Copilot SDK) 호출로 바꿔 줍니다. 경로는 두 가지이고, 가이드도 두 개입니다.
 
-| 경로 | 가이드 | 시작 명령 |
+| 경로 | 가이드 (웹에서 바로 열림) | 시작 명령 |
 |---|---|---|
-| 노트북 → 브리지 → Copilot SDK → Gemini 4 (직접) | **[guide.html](guide.html)** | `claude-gemini` |
-| 노트북 → **LiteLLM** → 브리지 → Copilot SDK → Gemini 4 | **[guide-litellm.html](guide-litellm.html)** | `gemini-litellm up` 후 `claude-gemini-litellm` |
+| 노트북 → 브리지 → Copilot SDK → Gemini 4 (직접) | **[직접 연결 가이드](https://junwoojeong100.github.io/cc-mscp-sdk-v2-gemini/guide.html)** · [▶ 영상 바로 재생](https://junwoojeong100.github.io/cc-mscp-sdk-v2-gemini/guide.html#video) | `claude-gemini` |
+| 노트북 → **LiteLLM** → 브리지 → Copilot SDK → Gemini 4 | **[LiteLLM 경유 가이드](https://junwoojeong100.github.io/cc-mscp-sdk-v2-gemini/guide-litellm.html)** · [▶ 영상 바로 재생](https://junwoojeong100.github.io/cc-mscp-sdk-v2-gemini/guide-litellm.html#video) | `gemini-litellm up` 후 `claude-gemini-litellm` |
 
-**👉 가이드를 브라우저로 여세요.** GitHub에서는 **GitHub Pages** 로 바로 볼 수 있습니다(저장소 오른쪽 위 **Website** 링크). 내려받았다면 `guide.html` · `guide-litellm.html` 을 직접 여세요. 화면 캡처와 영상으로 된 1페이지 실습 가이드이고, 영상은 [assets/demo.mp4](assets/demo.mp4), [assets/litellm/demo.mp4](assets/litellm/demo.mp4) 입니다. 가이드와 `assets/` 를 같은 위치에 두어야 영상이 재생됩니다.
+**👉 위 링크를 누르면 GitHub Pages에서 바로 열립니다.** 두 가이드를 한곳에서 고르려면 [랜딩 페이지](https://junwoojeong100.github.io/cc-mscp-sdk-v2-gemini/)로 가세요. 화면 캡처와 영상으로 된 1페이지 실습 가이드이고, `main` 에 푸시하면 두 가이드를 다시 만들어 자동으로 배포합니다. 내려받아 로컬에서 볼 때는 `guide.html` · `guide-litellm.html` 을 직접 여세요. 영상은 `assets/` 를 같은 위치에 두면 그 파일을, 없으면 위 주소의 영상을 재생합니다.
 
 ```bash
 npm ci
@@ -68,16 +68,18 @@ npm run site                          # Pages용 사이트 조립 → _site/ (�
 
 ## 저장소 이름을 바꿀 때
 
-저장소(폴더) 이름은 `package.json` 의 `name` **한 곳**에만 적혀 있고(`test/rename.test.mjs` 가 지킵니다), 가이드의 `cd …` 와 브리지의 캐시 폴더 이름은 거기서 따라옵니다. 이름을 바꾸려면
+저장소(폴더) 이름은 `package.json` 의 `name` 과 `homepage`(GitHub Pages 주소), 그리고 그 주소를 쓰는 README 링크에만 적혀 있습니다(`test/rename.test.mjs` 가 지킵니다). 가이드의 `cd …` 와 가이드 사이 링크, 브리지의 캐시 폴더 이름은 `package.json` 에서 따라옵니다. 이름을 바꾸려면
 
 ```bash
 claude-gemini-stop && gemini-litellm down     # 1. 떠 있는 브리지·게이트웨이 종료
 cd .. && mv <옛 이름> <새 이름> && cd <새 이름>
-# 2. package.json 의 "name" 을 <새 이름> 으로 고친다
+# 2. package.json 의 "name" 과 "homepage"(https://<계정>.github.io/<새 이름>/) 를 고친다
 npm install --package-lock-only               # 3. package-lock.json 의 이름 갱신
-npm test && npm run guide && npm run guide:litellm   # 4. 확인하고 가이드의 cd 줄 갱신
+npm run guide && npm run guide:litellm        # 4. 가이드의 cd 줄과 가이드 사이 링크 갱신
+# 5. README 의 github.io 링크를 새 주소로 고친다
+npm test                                      # 6. 어긋난 곳이 있으면 알려 줍니다
 ```
 
 `.runtime/`(LiteLLM)은 폴더를 옮겨도 그대로 동작합니다(LiteLLM을 `litellm` 스크립트가 아니라 venv 의 `python -m` 으로 실행하기 때문). 브리지의 캐시 폴더(`~/Library/Caches/<이름>`)는 새 이름으로 새로 만들어지고, 옛 폴더는 지워도 됩니다.
 
-GitHub에서 저장소 이름을 바꾸면 GitHub Pages 주소도 따라 바뀌고 옛 주소는 연결되지 않습니다. 저장소 오른쪽 위의 **Website** 링크를 `gh repo edit --homepage https://<계정>.github.io/<새 이름>/` 로 고치세요. 랜딩 페이지의 저장소 링크는 주소에서 계산하므로 손댈 곳이 없습니다.
+GitHub에서 저장소 이름을 바꾸면 GitHub Pages 주소도 따라 바뀌고 옛 주소는 연결되지 않습니다. 위 2~5번을 새 주소로 맞추고, 저장소 오른쪽 위의 **Website** 링크는 `gh repo edit --homepage https://<계정>.github.io/<새 이름>/` 로 고치세요. 랜딩 페이지의 저장소 링크는 주소에서 계산하므로 손댈 곳이 없습니다.

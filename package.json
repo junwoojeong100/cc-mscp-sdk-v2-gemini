@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Hands-on lab: run Claude Code on the four Gemini 4 models of GitHub Copilot through the Microsoft Copilot SDK.",
+  "homepage": "https://junwoojeong100.github.io/cc-mscp-sdk-v2-gemini/",
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },

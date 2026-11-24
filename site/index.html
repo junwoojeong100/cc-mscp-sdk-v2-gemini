@@ -53,7 +53,8 @@ main h2:not(:first-child){margin-top:40px}
 .btn:hover{filter:brightness(1.08)}
 .btn:focus-visible{outline:3px solid var(--tip);outline-offset:2px}
 .btn.ghost{background:transparent;color:var(--brand);border-color:var(--line);margin-top:0}
-.card .btn{margin-top:auto}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:auto}
+.actions .btn{margin-top:0}
 .plain{margin:10px 0 0;padding-left:1.2em}
 .plain li{margin:.25em 0}
 .note{margin-top:28px;padding:14px 18px;border-radius:var(--radius);background:var(--tip-soft);color:var(--tip)}
@@ -83,7 +84,10 @@ main h2:not(:first-child){margin-top:40px}
       <ol class="flow"><li>Claude Code</li><li>브리지</li><li>Copilot SDK</li><li>Gemini 4</li></ol>
       <p>처음이라면 이쪽부터 보세요.</p>
       <p class="cmd"><code>claude-gemini</code></p>
-      <a class="btn" href="guide.html">직접 연결 가이드 열기</a>
+      <div class="actions">
+        <a class="btn" href="guide.html">직접 연결 가이드 열기</a>
+        <a class="btn ghost" href="guide.html#video">▶ 영상 바로 재생</a>
+      </div>
     </article>
     <article class="card">
       <span class="tag">LiteLLM 경유</span>
@@ -91,7 +95,10 @@ main h2:not(:first-child){margin-top:40px}
       <ol class="flow"><li>Claude Code</li><li>LiteLLM</li><li>브리지</li><li>Copilot SDK</li><li>Gemini 4</li></ol>
       <p>게이트웨이를 설치하고 켜는 단계가 더 있습니다.</p>
       <p class="cmd"><code>gemini-litellm up</code> 후 <code>claude-gemini-litellm</code></p>
-      <a class="btn" href="guide-litellm.html">LiteLLM 가이드 열기</a>
+      <div class="actions">
+        <a class="btn" href="guide-litellm.html">LiteLLM 가이드 열기</a>
+        <a class="btn ghost" href="guide-litellm.html#video">▶ 영상 바로 재생</a>
+      </div>
     </article>
   </div>
 

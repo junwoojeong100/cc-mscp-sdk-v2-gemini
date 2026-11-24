@@ -163,6 +163,13 @@ const replacements = {
   },
   // The folder a learner clones into is named after the repository, which is package.json's name.
   "repo-name": () => JSON.parse(read("package.json")).name,
+  // Where the guides are published (GitHub Pages): package.json's homepage, always ending in a
+  // slash. The guides link to each other, and fall back to the video, through it.
+  "pages-url": () => {
+    const { homepage } = JSON.parse(read("package.json"));
+    if (!homepage) throw new Error("package.json has no homepage, the GitHub Pages address the guides link to");
+    return homepage.endsWith("/") ? homepage : `${homepage}/`;
+  },
   "sdk-version": () => results.environment.copilotSdk,
   "runtime-version": () => results.environment.copilotRuntime,
   "litellm-version": () => {

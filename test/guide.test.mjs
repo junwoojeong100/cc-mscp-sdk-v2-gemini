@@ -70,6 +70,17 @@ for (const track of Object.values(TRACKS)) {
     assert.deepEqual(chapters.map((chapter) => chapter.start), [...chapters.map((chapter) => chapter.start)].sort((a, b) => a - b));
   });
 
+  test(`${label}: the other guide, and a web copy of the video, are reached through the Pages address`, { skip }, () => {
+    const { homepage } = JSON.parse(read("package.json"));
+    const other = Object.values(TRACKS).find((candidate) => candidate !== track);
+    assert.ok(html.includes(`href="${homepage}${other.guide}"`), `no link to ${homepage}${other.guide}`);
+    // The local file first, so the page works offline; the copy on Pages when the page is opened without assets/.
+    const sources = [...html.matchAll(/<source src="([^"]+)" type="video\/mp4">/g)].map((match) => match[1]);
+    assert.deepEqual(sources, [`${track.assets}/demo.mp4`, `${homepage}${track.assets}/demo.mp4`]);
+    // Buffered ahead and played inline, so it starts the moment it is asked to.
+    assert.match(html, /<video id="demo" controls preload="auto" playsinline /);
+  });
+
   test(`${label}: the verification numbers on the page are the recorded ones`, { skip }, () => {
     const recorded = results();
     assert.ok(html.includes(`<b>${recorded.summary.passed}/${recorded.summary.cases}</b>`));

@@ -197,7 +197,7 @@ dialog#zoom img{display:block;max-width:96vw;max-height:92vh;border-radius:10px;
     <div class="cta">
       <a class="btn primary" href="#video">▶ 영상으로 먼저 보기</a>
       <a class="btn ghost" href="#s1">바로 실습 시작 →</a>
-      <a class="btn ghost" href="guide-litellm.html">LiteLLM 경유 편 →</a>
+      <a class="btn ghost" href="{{pages-url}}guide-litellm.html">LiteLLM 경유 편 →</a>
     </div>
   </div>
 </header>
@@ -257,13 +257,14 @@ dialog#zoom img{display:block;max-width:96vw;max-height:92vh;border-radius:10px;
     <h2>영상으로 먼저 보기</h2>
     <p class="goal">전체 실습을 한 번에 보여 주는 화면 녹화입니다(약 {{video-length}}). 실제 터미널 세션을 기록한 것이고, 기다리는 구간만 배속으로 줄였습니다(화면에 배속 표시).</p>
     <div class="video">
-      <video id="demo" controls preload="metadata" poster="{{poster}}">
+      <video id="demo" controls preload="auto" playsinline poster="{{poster}}">
         <source src="assets/demo.mp4" type="video/mp4">
-        브라우저가 video 태그를 지원하지 않습니다. <a href="assets/demo.mp4">assets/demo.mp4</a> 를 직접 여세요.
+        <source src="{{pages-url}}assets/demo.mp4" type="video/mp4">
+        브라우저가 video 태그를 지원하지 않습니다. <a href="{{pages-url}}assets/demo.mp4">영상 파일</a> 을 직접 여세요.
       </video>
     </div>
     <div class="chapters" id="chapters" aria-label="영상 챕터"></div>
-    <p class="zoomhint">영상 파일은 이 HTML과 같은 폴더의 <code>assets/demo.mp4</code> 입니다. 두 파일을 함께 두세요.</p>
+    <p class="zoomhint">영상은 이 HTML과 같은 폴더의 <code>assets/demo.mp4</code> 를 먼저 쓰고, 없으면 GitHub Pages의 같은 파일을 재생합니다.</p>
   </section>
 
   <section id="how">
@@ -696,6 +697,12 @@ claude-gemini-stop                  <span class="c"># 다 쓰면 브리지 종�
   // Video chapters: one button per title card in the video.
   var chapters = {{chapters}};
   var video = document.getElementById('demo'); var bar = document.getElementById('chapters');
+  // "영상으로 먼저 보기" starts the video at once. The recording has no sound track, so it also
+  // starts by itself, muted, when the page is opened at #video.
+  function playDemo() { var started = video.play(); if (started && started.catch) { started.catch(function () {}); } }
+  var watchFirst = document.querySelector('.cta a[href="#video"]');
+  if (watchFirst) { watchFirst.addEventListener('click', playDemo); }
+  if (location.hash === '#video') { video.muted = true; playDemo(); }
   chapters.forEach(function (chapter) {
     var button = document.createElement('button'); button.type = 'button';
     button.textContent = (chapter.step ? chapter.step + ' · ' : '') + chapter.title;

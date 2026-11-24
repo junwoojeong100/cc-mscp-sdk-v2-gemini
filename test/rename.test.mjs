@@ -7,7 +7,8 @@ import { fileURLToPath } from "node:url";
 import { TRACKS } from "../scripts/verify/tracks.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const { name } = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+const { name, homepage } = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // Not source: dependencies, recordings, runtime state and the built site. The guides are
 // built from their templates, which take the name from package.json.
@@ -25,7 +26,9 @@ function* sourceFiles(directory) {
 
 test("the repository name is spelled only in package.json, so renaming the repository is one edit", () => {
   const offenders = [...sourceFiles(ROOT)]
-    .filter((file) => fs.readFileSync(file).includes(name))
+    // package.json's homepage, the GitHub Pages address, names the repository by necessity. The
+    // README links through it, and the test below keeps those links in step with the name.
+    .filter((file) => fs.readFileSync(file, "utf8").replaceAll(homepage, "").includes(name))
     .map((file) => path.relative(ROOT, file));
   assert.deepEqual(offenders, [], `these files hard-code "${name}"; read it from package.json instead`);
 });
@@ -37,4 +40,12 @@ test("the lockfile names no package feed, so it installs through whatever regist
     .map(([location, entry]) => `${location}: ${entry.resolved}`);
   assert.deepEqual(resolved, [], "keep .npmrc in place, or run npm install --package-lock-only --omit-lockfile-registry-resolved");
   assert.match(fs.readFileSync(path.join(ROOT, ".npmrc"), "utf8"), /^omit-lockfile-registry-resolved=true$/m);
+});
+
+test("package.json's homepage is the repository's GitHub Pages address, and the README links the guides through it", () => {
+  assert.match(homepage, new RegExp(`^https://[a-z0-9-]+\\.github\\.io/${escapeRegExp(name)}/$`), "homepage must be https://<owner>.github.io/<name>/ for the current name");
+  const readme = fs.readFileSync(path.join(ROOT, "README.md"), "utf8");
+  for (const target of ["", "guide.html", "guide.html#video", "guide-litellm.html", "guide-litellm.html#video"]) {
+    assert.ok(readme.includes(`](${homepage}${target})`), `README.md must link ${homepage}${target}; after renaming the repository, update its github.io links`);
+  }
 });
