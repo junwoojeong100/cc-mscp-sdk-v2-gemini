@@ -7,7 +7,7 @@ GitHub Copilot의 **Gemini 4 모델 4종**(Argon · Carbon · Hydrogen · Neon)�
 | 노트북 → 브리지 → Copilot SDK → Gemini 4 (직접) | **[guide.html](guide.html)** | `claude-gemini` |
 | 노트북 → **LiteLLM** → 브리지 → Copilot SDK → Gemini 4 | **[guide-litellm.html](guide-litellm.html)** | `gemini-litellm up` 후 `claude-gemini-litellm` |
 
-**👉 가이드를 브라우저로 여세요.** 화면 캡처와 영상으로 된 1페이지 실습 가이드입니다. 영상은 [assets/demo.mp4](assets/demo.mp4), [assets/litellm/demo.mp4](assets/litellm/demo.mp4) 이고, 가이드와 `assets/` 를 같은 위치에 두어야 영상이 재생됩니다.
+**👉 가이드를 브라우저로 여세요.** GitHub에서는 **GitHub Pages** 로 바로 볼 수 있습니다(저장소 오른쪽 위 **Website** 링크). 내려받았다면 `guide.html` · `guide-litellm.html` 을 직접 여세요. 화면 캡처와 영상으로 된 1페이지 실습 가이드이고, 영상은 [assets/demo.mp4](assets/demo.mp4), [assets/litellm/demo.mp4](assets/litellm/demo.mp4) 입니다. 가이드와 `assets/` 를 같은 위치에 두어야 영상이 재생됩니다.
 
 ```bash
 npm ci
@@ -27,6 +27,7 @@ gemini-litellm down
 | 폴더·파일 | 내용 |
 |---|---|
 | `guide.html` · `guide-litellm.html` | 실습 가이드 (한 페이지, 캡처 내장) — `guide/template.html` · `guide/litellm.template.html` 에서 `npm run guide` · `npm run guide:litellm` 로 생성 |
+| `site/` · `.github/workflows/pages.yml` · `scripts/build-site.mjs` | GitHub Pages: 랜딩 페이지, 배포 워크플로, 사이트 조립 스크립트. `main` 에 푸시하면 두 가이드를 다시 만들어 영상과 함께 배포합니다 (`npm run site` → `_site/`) |
 | `assets/` · `assets/litellm/` | 가이드의 영상 `demo.mp4` 와 화면 캡처 `shots/` (`npm run media:build` · `media:build:litellm` 로 생성) |
 | `bin/` · `src/` | 런처와 브리지. `claude-gemini`, `claude-gemini-litellm`, `gemini-litellm`, `gemini-models`, `gemini-doctor`, `gemini-lab` … |
 | `examples/litellm-gemini.yaml` | LiteLLM 설정: 별칭 4개, 브리지로의 연결(토큰은 `x-api-key` 헤더로), 헤더 전달 |
@@ -58,6 +59,7 @@ npm run guide                         # guide.html 다시 만들기
 npm run media:record:litellm          # LiteLLM 경로 녹화 (LiteLLM 을 새로 설치해 보여 줍니다)
 npm run media:build:litellm           # 〃 캡처와 영상 → assets/litellm/
 npm run guide:litellm                 # guide-litellm.html 다시 만들기
+npm run site                          # Pages용 사이트 조립 → _site/ (가이드를 먼저 만들어 두세요)
 ```
 
 ## SDK 버전
@@ -77,3 +79,5 @@ npm test && npm run guide && npm run guide:litellm   # 4. 확인하고 가이드
 ```
 
 `.runtime/`(LiteLLM)은 폴더를 옮겨도 그대로 동작합니다(LiteLLM을 `litellm` 스크립트가 아니라 venv 의 `python -m` 으로 실행하기 때문). 브리지의 캐시 폴더(`~/Library/Caches/<이름>`)는 새 이름으로 새로 만들어지고, 옛 폴더는 지워도 됩니다.
+
+GitHub에서 저장소 이름을 바꾸면 GitHub Pages 주소도 따라 바뀌고 옛 주소는 연결되지 않습니다. 저장소 오른쪽 위의 **Website** 링크를 `gh repo edit --homepage https://<계정>.github.io/<새 이름>/` 로 고치세요. 랜딩 페이지의 저장소 링크는 주소에서 계산하므로 손댈 곳이 없습니다.

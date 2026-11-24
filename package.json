@@ -39,7 +39,8 @@
     "media:build": "node scripts/media/build.mjs",
     "media:build:litellm": "node scripts/media/build.mjs --via litellm",
     "guide": "node scripts/build-guide.mjs",
-    "guide:litellm": "node scripts/build-guide.mjs --via litellm"
+    "guide:litellm": "node scripts/build-guide.mjs --via litellm",
+    "site": "node scripts/build-site.mjs"
   },
   "dependencies": {
     "@microsoft/copilot-sdk": "2.0.0",

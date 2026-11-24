@@ -1,0 +1,66 @@
+name: Pages
+
+# Every push to main rebuilds both guides from their templates and publishes them to
+# GitHub Pages, together with the landing page (site/) and the demo videos.
+# One-time setup, already done for this repository:
+#   gh api -X POST repos/<owner>/<repository>/pages -f build_type=workflow
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One deployment at a time; a deployment that has started is never cancelled.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      # Only Node is needed. The guides come from the templates, the recorded
+      # verification results and the captures in assets/; there is no npm install.
+      - name: Build the guides
+        run: |
+          npm run --silent guide
+          npm run --silent guide:litellm
+
+      - name: Warn when the committed guides were out of date
+        run: |
+          if ! git diff --quiet -- guide.html guide-litellm.html; then
+            echo "::warning title=Committed guides are out of date::guide.html or guide-litellm.html differs from a fresh build. Run npm run guide && npm run guide:litellm and commit the result."
+          fi
+
+      - name: Assemble the site
+        run: npm run --silent site
+
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

@@ -9,9 +9,9 @@ import { TRACKS } from "../scripts/verify/tracks.mjs";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const { name } = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
 
-// Not source: dependencies, recordings and runtime state. The guides are built
-// from their templates, which take the name from package.json.
-const SKIPPED_DIRECTORIES = new Set(["node_modules", ".media", ".runtime", ".verify-runs", ".git", "assets"]);
+// Not source: dependencies, recordings, runtime state and the built site. The guides are
+// built from their templates, which take the name from package.json.
+const SKIPPED_DIRECTORIES = new Set(["node_modules", ".media", ".runtime", ".verify-runs", ".git", "assets", "_site"]);
 const SKIPPED_FILES = new Set(["package.json", "package-lock.json", ...Object.values(TRACKS).map((track) => track.guide)]);
 
 function* sourceFiles(directory) {

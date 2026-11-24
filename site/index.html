@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Code로 Gemini 4 쓰기 — 실습 가이드</title>
+<meta name="description" content="GitHub Copilot의 Gemini 4 모델 4종(Argon · Carbon · Hydrogen · Neon)을 Claude Code에서 쓰는 실습 가이드. 직접 연결과 LiteLLM 경유, 두 가지 경로.">
+<style>
+:root{
+  --bg:#f7f7fb; --fg:#1b1c20; --muted:#5d6068; --card:#ffffff; --line:#e2e4ec; --soft:#f0f1f6;
+  --brand:#5b3df5; --brand-soft:#efeaff; --brand-fg:#ffffff; --tip:#0b5cad; --tip-soft:#e4f0fc;
+  --shadow:0 1px 2px rgba(20,20,40,.06),0 10px 30px rgba(20,20,40,.07);
+  --radius:14px;
+  color-scheme:light dark;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0e0f13; --fg:#ececf1; --muted:#a3a6b0; --card:#16181e; --line:#2a2d36; --soft:#1d2028;
+    --brand:#a592ff; --brand-soft:#241f4d; --brand-fg:#14102e; --tip:#7ab8f5; --tip-soft:#10294a;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+  }
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.75 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+code{font-family:"SF Mono",Menlo,Consolas,"Apple SD Gothic Neo",monospace;font-size:.9em;background:var(--soft);padding:.12em .42em;border-radius:6px}
+h1,h2,h3{line-height:1.3;letter-spacing:-.02em;margin:0}
+p{margin:.7em 0}
+.wrap{max-width:1000px;margin:0 auto;padding:0 24px}
+
+.hero{background:radial-gradient(1200px 400px at 85% -10%,rgba(125,95,255,.28),transparent 60%),linear-gradient(180deg,#17142e,#0f0e1d);color:#f4f3fb;padding:56px 0 44px}
+.hero .eyebrow{display:inline-block;font-size:13px;font-weight:600;letter-spacing:.08em;color:#cfc6ff;background:rgba(255,255,255,.08);padding:5px 12px;border-radius:999px;margin-bottom:18px}
+.hero h1{font-size:clamp(30px,5vw,50px);font-weight:800;margin-bottom:14px}
+.hero h1 em{font-style:normal;background:linear-gradient(90deg,#b9a8ff,#7fd6ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero .lead{font-size:clamp(16px,2vw,19px);color:#d8d6ea;max-width:44em;margin:0 0 22px}
+.badges{display:flex;flex-wrap:wrap;gap:10px;margin:0}
+.badge{font-size:13.5px;padding:6px 13px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);color:#f0eefc}
+
+main.wrap{padding:40px 24px 16px}
+main h2{font-size:24px;margin:0 0 6px}
+main h2:not(:first-child){margin-top:40px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;margin:16px 0 0}
+.card{display:flex;flex-direction:column;align-items:flex-start;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:24px}
+.tag{font-size:12.5px;font-weight:700;letter-spacing:.06em;color:var(--brand);background:var(--brand-soft);padding:3px 11px;border-radius:999px}
+.card h3{font-size:19px;margin-top:6px}
+.flow{list-style:none;display:flex;flex-wrap:wrap;gap:8px 22px;margin:8px 0 2px;padding:0;font-size:14px}
+.flow li{position:relative;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:1px 10px}
+.flow li:not(:last-child)::after{content:"→";position:absolute;right:-18px;top:0;color:var(--muted)}
+.card p{margin:.4em 0;color:var(--muted)}
+.card p.cmd{color:var(--fg);margin-bottom:14px}
+.btn{display:inline-flex;align-items:center;margin-top:14px;padding:11px 18px;border-radius:12px;font-weight:700;font-size:15px;text-decoration:none;background:var(--brand);color:var(--brand-fg);border:1px solid transparent}
+.btn:hover{filter:brightness(1.08)}
+.btn:focus-visible{outline:3px solid var(--tip);outline-offset:2px}
+.btn.ghost{background:transparent;color:var(--brand);border-color:var(--line);margin-top:0}
+.card .btn{margin-top:auto}
+.plain{margin:10px 0 0;padding-left:1.2em}
+.plain li{margin:.25em 0}
+.note{margin-top:28px;padding:14px 18px;border-radius:var(--radius);background:var(--tip-soft);color:var(--tip)}
+.foot{padding:20px 24px 56px}
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow">실습 가이드 · 화면 캡처와 영상</span>
+    <h1>Claude Code로 <em>Gemini 4</em> 쓰기</h1>
+    <p class="lead">GitHub Copilot의 Gemini 4 모델 4종(Argon · Carbon · Hydrogen · Neon)을 Claude Code에서 쓰는 실습입니다. 로컬 브리지가 Claude Code의 요청을 Microsoft Copilot SDK 호출로 바꿔 줍니다. 경로가 두 가지라 가이드도 두 개입니다.</p>
+    <div class="badges">
+      <span class="badge">Microsoft Copilot SDK v2</span>
+      <span class="badge">Gemini 4 · 모델 4종</span>
+      <span class="badge">가이드마다 한 페이지</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <h2>어느 경로로 해 볼까요?</h2>
+  <div class="cards">
+    <article class="card">
+      <span class="tag">직접 연결</span>
+      <h3>브리지만 거치는 가장 짧은 경로</h3>
+      <ol class="flow"><li>Claude Code</li><li>브리지</li><li>Copilot SDK</li><li>Gemini 4</li></ol>
+      <p>처음이라면 이쪽부터 보세요.</p>
+      <p class="cmd"><code>claude-gemini</code></p>
+      <a class="btn" href="guide.html">직접 연결 가이드 열기</a>
+    </article>
+    <article class="card">
+      <span class="tag">LiteLLM 경유</span>
+      <h3>LiteLLM 게이트웨이를 앞에 두는 경로</h3>
+      <ol class="flow"><li>Claude Code</li><li>LiteLLM</li><li>브리지</li><li>Copilot SDK</li><li>Gemini 4</li></ol>
+      <p>게이트웨이를 설치하고 켜는 단계가 더 있습니다.</p>
+      <p class="cmd"><code>gemini-litellm up</code> 후 <code>claude-gemini-litellm</code></p>
+      <a class="btn" href="guide-litellm.html">LiteLLM 가이드 열기</a>
+    </article>
+  </div>
+
+  <h2>두 가이드 모두</h2>
+  <ul class="plain">
+    <li>화면 캡처와 녹화 영상이 따라 하는 순서대로 들어 있습니다.</li>
+    <li>작성 환경에서 실제로 Gemini 4를 호출해 확인한 검증 결과 표가 있습니다.</li>
+    <li>막힐 때 보는 문제 해결 표와 한계·범위를 정리했습니다.</li>
+  </ul>
+  <p class="note"><b>비공식 구성입니다.</b> Anthropic도 GitHub도 이 조합을 지원하지 않습니다. 개인 실험·연구용으로 쓰세요.</p>
+</main>
+
+<footer class="wrap foot">
+  <a id="repo" class="btn ghost" hidden>GitHub 저장소 보기</a>
+</footer>
+
+<script>
+  // On GitHub Pages the address is https://<owner>.github.io/<repository>/, so the
+  // link to the repository follows from it and no name is written in this page.
+  (function () {
+    var suffix = ".github.io";
+    var host = location.hostname;
+    var repository = location.pathname.split("/")[1];
+    if (host.slice(-suffix.length) !== suffix || !repository) return;
+    var link = document.getElementById("repo");
+    link.href = "https://github.com/" + host.slice(0, -suffix.length) + "/" + repository;
+    link.hidden = false;
+  })();
+</script>
+</body>
+</html>
