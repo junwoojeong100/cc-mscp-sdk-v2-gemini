@@ -1,0 +1,86 @@
+{
+  "note": "Edited replay of real PTY recordings (waits are sped up and labelled). Not verification evidence: see verification/results.json.",
+  "video": {
+    "file": "demo.mp4",
+    "seconds": 200.4,
+    "bytes": 2521285
+  },
+  "chapters": [
+    {
+      "step": "STEP 2",
+      "title": "환경 점검",
+      "subtitle": "gemini-doctor · gemini-models",
+      "start": 0.1
+    },
+    {
+      "step": "STEP 3",
+      "title": "첫 호출",
+      "subtitle": "claude-gemini  -p  (print 모드)",
+      "start": 14.2
+    },
+    {
+      "step": "STEP 4",
+      "title": "대화형으로 시작",
+      "subtitle": "처음 한 번만 나오는 Claude Code 첫 실행 화면",
+      "start": 40
+    },
+    {
+      "step": "STEP 5",
+      "title": "/model 로 모델 바꾸기",
+      "subtitle": "한 대화 안에서 Gemini 4 모델 4개를 모두 사용",
+      "start": 69.8
+    },
+    {
+      "step": "STEP 6",
+      "title": "코딩 실습",
+      "subtitle": "실패하는 테스트를 Gemini 가 고칩니다",
+      "start": 114.7
+    },
+    {
+      "step": "STEP 7",
+      "title": "이미지 읽기",
+      "subtitle": "Gemini 4 는 이미지를 이해합니다",
+      "start": 159.1
+    },
+    {
+      "step": "STEP 8",
+      "title": "정리",
+      "subtitle": "상주 브리지 확인과 종료",
+      "start": 174.8
+    },
+    {
+      "step": "검증",
+      "title": "검증 결과",
+      "subtitle": "이 실습은 실제 호출로 검증했습니다",
+      "start": 186.9
+    }
+  ],
+  "stills": [
+    "doctor",
+    "models",
+    "print-one",
+    "print-four",
+    "first-theme",
+    "first-security",
+    "first-terminal",
+    "first-trust",
+    "first-trust-yes",
+    "tui-start",
+    "chat-hydrogen",
+    "picker",
+    "picker-select",
+    "switch-confirm",
+    "recall",
+    "four-models",
+    "turns",
+    "tests-fail",
+    "coding-working",
+    "coding-done",
+    "git-diff",
+    "tests-pass",
+    "vision",
+    "status-running",
+    "status-stopped",
+    "verify-report"
+  ]
+}

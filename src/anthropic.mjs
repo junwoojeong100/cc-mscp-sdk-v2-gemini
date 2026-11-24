@@ -1,0 +1,485 @@
+export function extractText(content) {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .filter((block) => block?.type === "text" && typeof block.text === "string")
+    .map((block) => block.text)
+    .join("\n");
+}
+
+export function extractSystem(system, messages = []) {
+  const context = [];
+  for (const message of messages) {
+    if (message?.role !== "system") continue;
+    // Budget telemetry changes every request; agent/style/permission instructions do not.
+    const text = extractText(message.content)
+      .replace(/<system-reminder>\s*<total_tokens>\d+ tokens left<\/total_tokens>\s*<\/system-reminder>/g, "")
+      .replace(/<total_tokens>\d+ tokens left<\/total_tokens>/g, "")
+      .trim();
+    if (!text) continue;
+    const previous = context.indexOf(text);
+    if (previous >= 0) context.splice(previous, 1);
+    context.push(text);
+  }
+  return [extractText(system) || "You are a helpful coding assistant.", ...context].join("\n\n");
+}
+
+export function extractReasoningEffort(body) {
+  const effort = body?.output_config?.effort;
+  if (typeof effort !== "string" || !effort.trim()) return null;
+
+  const normalized = effort.trim().toLowerCase();
+  return normalized === "ultracode" ? "xhigh" : normalized;
+}
+
+function lastMessageIndex(messages = []) {
+  return messages.findLastIndex((message) => message?.role !== "system");
+}
+
+function attachmentFromBlock(block, index) {
+  const source = block?.source;
+  if (!source || source.type !== "base64" || typeof source.data !== "string") {
+    return null;
+  }
+
+  return {
+    type: "blob",
+    data: source.data,
+    mimeType: source.media_type || "application/octet-stream",
+    displayName: `${block.type || "attachment"}-${index + 1}`,
+  };
+}
+
+function toolResultValue(block) {
+  const textParts = [];
+  const binaryResultsForLlm = [];
+  const content =
+    typeof block.content === "string"
+      ? [{ type: "text", text: block.content }]
+      : block.content;
+
+  for (const item of Array.isArray(content) ? content : []) {
+    if (item?.type === "text" && typeof item.text === "string") {
+      textParts.push(item.text);
+      continue;
+    }
+    if (item?.type === "tool_reference" && typeof item.tool_name === "string") {
+      textParts.push(`[tool_reference ${JSON.stringify(item.tool_name)}]`);
+      continue;
+    }
+
+    const attachment = attachmentFromBlock(item, binaryResultsForLlm.length);
+    if (attachment) {
+      binaryResultsForLlm.push({
+        data: attachment.data,
+        mimeType: attachment.mimeType,
+        type: item.type === "image" ? "image" : "resource",
+        description: attachment.displayName,
+      });
+    }
+  }
+
+  return {
+    textResultForLlm: textParts.join("\n"),
+    ...(binaryResultsForLlm.length ? { binaryResultsForLlm } : {}),
+    resultType: block.is_error ? "failure" : "success",
+    ...(block.is_error ? { error: textParts.join("\n") || "Claude Code tool failed." } : {}),
+  };
+}
+
+function replayAttachmentText(attachment) {
+  return `[attachment ${attachment.displayName} ${attachment.mimeType} ${Buffer.byteLength(attachment.data, "base64")} bytes]`;
+}
+
+function replayToolResultText(block, attachments, prefix) {
+  const value = toolResultValue(block);
+  // A reference in the transcript names the blob sent alongside it, so two
+  // reads of the same media type do not become indistinguishable on replay.
+  const references = (value.binaryResultsForLlm || []).map((item) => {
+    const attachment = {
+      type: "blob",
+      data: item.data,
+      mimeType: item.mimeType,
+      displayName: attachments ? `${prefix}-${item.description}` : item.description,
+    };
+    attachments?.push(attachment);
+    return replayAttachmentText(attachment);
+  });
+  return [value.textResultForLlm, ...references].filter(Boolean).join("\n");
+}
+
+export function extractTurnInput(body) {
+  const messages = body.messages || [];
+  const messageIndex = lastMessageIndex(messages);
+  const message = messages[messageIndex];
+  if (message?.role !== "user") {
+    return { kind: "continuation", attachments: [] };
+  }
+
+  const blocks = Array.isArray(message.content) ? message.content : [];
+  const toolResults = blocks
+    .filter((block) => block?.type === "tool_result")
+    .map((block) => ({
+      toolUseId: block.tool_use_id,
+      value: toolResultValue(block),
+    }));
+
+  const attachments = blocks
+    .map((block, index) => attachmentFromBlock(block, index))
+    .filter(Boolean);
+
+  if (toolResults.length) {
+    return {
+      kind: "tool-results",
+      toolResults,
+      prompt: extractText(message.content),
+      attachments,
+      messageIndex,
+    };
+  }
+
+  return {
+    kind: "prompt",
+    prompt: extractText(message.content),
+    attachments,
+    messageIndex,
+  };
+}
+
+function serializeMessage(message, messageIndex, attachments) {
+  const role = String(message?.role || "unknown").toUpperCase();
+  if (typeof message?.content === "string") return `${role}: ${message.content}`;
+  if (!Array.isArray(message?.content)) return `${role}:`;
+
+  const rendered = message.content.map((block, blockIndex) => {
+    const prefix = `history-${messageIndex + 1}-${blockIndex + 1}`;
+    if (block?.type === "text") return block.text;
+    if (block?.type === "tool_use") {
+      const id = typeof block.id === "string" ? ` id=${JSON.stringify(block.id)}` : "";
+      return `[tool_use ${block.name}${id} ${JSON.stringify(block.input || {})}]`;
+    }
+    if (block?.type === "tool_result") {
+      const error = block.is_error ? " is_error=true" : "";
+      return `[tool_result ${block.tool_use_id}${error} ${replayToolResultText(block, attachments, prefix)}]`;
+    }
+    const attachment = attachments && attachmentFromBlock(block, blockIndex);
+    if (attachment) {
+      attachment.displayName = `${prefix}-${attachment.displayName}`;
+      attachments.push(attachment);
+      return replayAttachmentText(attachment);
+    }
+    return `[${block?.type || "content"}]`;
+  }).join("\n");
+  return `${role}: ${rendered}`;
+}
+
+export function serializeConversation(messages = []) {
+  return messages.map((message, index) => serializeMessage(message, index)).join("\n\n");
+}
+
+export function serializeConversationTail(messages = [], maxBytes = 268_435_456) {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) {
+    throw new Error("maxBytes must be a positive integer.");
+  }
+
+  const rendered = messages.map((message, index) => {
+    const attachments = [];
+    const text = serializeMessage(message, index, attachments);
+    const bytes = Buffer.byteLength(text) + attachments.reduce(
+      (total, item) => total + Buffer.byteLength(item.data, "base64"), 0,
+    );
+    return { text, attachments, bytes };
+  });
+  const selected = [];
+  let selectedBytes = 0;
+  for (let index = rendered.length - 1; index >= 0; index -= 1) {
+    const separatorBytes = selected.length ? 2 : 0;
+    if (selectedBytes + separatorBytes + rendered[index].bytes > maxBytes) break;
+    selected.unshift(rendered[index]);
+    selectedBytes += separatorBytes + rendered[index].bytes;
+  }
+
+  const truncated = selected.length < rendered.length;
+  return {
+    text: [
+      ...(truncated ? ["[... prior conversation truncated ...]"] : []),
+      ...selected.map((message) => message.text),
+    ].join("\n\n"),
+    attachments: selected.flatMap((message) => message.attachments),
+    truncated,
+  };
+}
+
+function normalizeToolArguments(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value;
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch {}
+  }
+  return {};
+}
+
+export function anthropicContent(message) {
+  const content = [];
+  if (message.content) content.push({ type: "text", text: message.content });
+
+  for (const tool of message.toolRequests || []) {
+    content.push({
+      type: "tool_use",
+      id: tool.toolCallId,
+      name: tool.name,
+      input: normalizeToolArguments(tool.arguments),
+    });
+  }
+
+  return content;
+}
+
+export function estimateTokens(value) {
+  return Math.max(1, Math.ceil(JSON.stringify(value || {}).length / 4));
+}
+
+export function anthropicStopReason(message, usage) {
+  if (message.toolRequests?.length) return "tool_use";
+  if (usage?.contentFilterTriggered || usage?.finishReason === "content_filter") {
+    return "refusal";
+  }
+  if (usage?.finishReason === "length") return "max_tokens";
+  if (usage?.finishReason === "stop_sequence") return "stop_sequence";
+  return "end_turn";
+}
+
+function anthropicUsage(inputTokens, message, usage) {
+  // Copilot's input total includes cache tokens; Anthropic's three input
+  // counters are disjoint. Adding cached tokens again overstates context use.
+  const uncachedInput = usage?.inputTokens == null
+    ? inputTokens
+    : Math.max(0, usage.inputTokens - (usage.cacheReadTokens ?? 0) - (usage.cacheWriteTokens ?? 0));
+  return {
+    input_tokens: uncachedInput,
+    output_tokens: usage?.outputTokens ?? message.outputTokens ?? 0,
+    ...(usage?.cacheReadTokens
+      ? { cache_read_input_tokens: usage.cacheReadTokens }
+      : {}),
+    ...(usage?.cacheWriteTokens
+      ? { cache_creation_input_tokens: usage.cacheWriteTokens }
+      : {}),
+  };
+}
+
+// Claude Code keeps message_start's input estimate unless message_delta reports
+// more than zero, so a fully cached turn moves one cached token to input and
+// the merged total still matches the JSON usage.
+function streamedUsage(inputTokens, message, usage) {
+  const counted = anthropicUsage(inputTokens, message, usage);
+  const cache = counted.input_tokens > 0 ? null
+    : counted.cache_read_input_tokens ? "cache_read_input_tokens"
+      : counted.cache_creation_input_tokens ? "cache_creation_input_tokens" : null;
+  if (!cache) return counted;
+  const { [cache]: cached, ...rest } = counted;
+  return { ...rest, input_tokens: 1, ...(cached > 1 ? { [cache]: cached - 1 } : {}) };
+}
+
+export function writeJsonMessage(
+  res,
+  { id, model, message, inputTokens, usage },
+) {
+  const body = {
+    id,
+    type: "message",
+    role: "assistant",
+    model,
+    content: anthropicContent(message),
+    stop_reason: anthropicStopReason(message, usage),
+    stop_sequence: null,
+    usage: anthropicUsage(inputTokens, message, usage),
+  };
+  const rendered = JSON.stringify(body);
+  res.writeHead(200, {
+    "content-type": "application/json",
+    "content-length": Buffer.byteLength(rendered),
+  });
+  res.end(rendered);
+}
+
+export function startSse(res) {
+  res.writeHead(200, {
+    "content-type": "text/event-stream",
+    "cache-control": "no-cache",
+    connection: "keep-alive",
+  });
+  res.write(": connected\n\n");
+}
+
+function event(res, name, data) {
+  res.write(`event: ${name}\n`);
+  res.write(`data: ${JSON.stringify(data)}\n\n`);
+}
+
+export class AnthropicSseStream {
+  constructor(res, { id, inputTokens }) {
+    this.res = res;
+    this.id = id;
+    this.inputTokens = inputTokens;
+    this.started = false;
+    this.model = null;
+    this.nextIndex = 0;
+    this.textBlock = null;
+    this.toolBlocks = new Map();
+    // Native streams never interleave blocks: each content_block_stop lands
+    // before the next content_block_start, so at most one block is open.
+    this.openBlock = null;
+  }
+
+  start(model) {
+    if (this.started) return;
+    this.started = true;
+    this.model = model;
+    event(this.res, "message_start", {
+      type: "message_start",
+      message: {
+        id: this.id,
+        type: "message",
+        role: "assistant",
+        model,
+        content: [],
+        stop_reason: null,
+        stop_sequence: null,
+        // A message interrupted before message_delta keeps this usage, and
+        // Claude Code anchors its context count on it.
+        usage: { input_tokens: this.inputTokens, output_tokens: 0 },
+      },
+    });
+  }
+
+  handleSdkEvent(sdkEvent) {
+    if (sdkEvent.agentId) return;
+
+    if (sdkEvent.type === "assistant.message_delta") {
+      this.#writeTextDelta(sdkEvent.data.deltaContent || "");
+      return;
+    }
+
+    // assistant.tool_call_delta is deliberately not written through. Copilot
+    // also emits deltas for calls it never registers, and only the bridge's
+    // finishTurn knows which ones survive. A content_block_start cannot be
+    // retracted once it is on the wire, so opening a tool block here would
+    // frame a tool_use that later has no input and no "tool_use" stop reason.
+    // Nothing is lost by waiting: the input JSON was never streamed from the
+    // deltas either, finish() writes each surviving call in full.
+  }
+
+  finish({ model, message, usage }) {
+    this.start(model);
+
+    const streamedContent = this.textBlock?.content || "";
+    const remainingContent = message.content?.startsWith(streamedContent)
+      ? message.content.slice(streamedContent.length)
+      : "";
+    this.#writeTextDelta(remainingContent);
+
+    for (const tool of message.toolRequests || []) {
+      // A repeated call id would write input into a block already stopped.
+      if (this.toolBlocks.has(tool.toolCallId)) continue;
+      const block = this.#ensureToolBlock(tool.toolCallId, tool.name);
+      this.#writeToolInputDelta(
+        block,
+        JSON.stringify(normalizeToolArguments(tool.arguments)),
+      );
+      this.#closeOpenBlock();
+    }
+    this.#closeOpenBlock();
+
+    event(this.res, "message_delta", {
+      type: "message_delta",
+      delta: {
+        stop_reason: anthropicStopReason(message, usage),
+        stop_sequence: null,
+      },
+      usage: streamedUsage(this.inputTokens, message, usage),
+    });
+    event(this.res, "message_stop", { type: "message_stop" });
+    this.res.end();
+  }
+
+  #writeTextDelta(text) {
+    if (!text) return;
+    if (!this.textBlock || this.openBlock !== this.textBlock) {
+      this.#closeOpenBlock();
+      const content = this.textBlock?.content || "";
+      this.textBlock = { index: this.nextIndex++, content };
+      this.openBlock = this.textBlock;
+      event(this.res, "content_block_start", {
+        type: "content_block_start",
+        index: this.textBlock.index,
+        content_block: { type: "text", text: "" },
+      });
+    }
+    this.textBlock.content += text;
+    event(this.res, "content_block_delta", {
+      type: "content_block_delta",
+      index: this.textBlock.index,
+      delta: { type: "text_delta", text },
+    });
+  }
+
+  #ensureToolBlock(toolCallId, toolName) {
+    const existing = this.toolBlocks.get(toolCallId);
+    if (existing) return existing;
+
+    this.#closeOpenBlock();
+    const block = {
+      index: this.nextIndex++,
+      name: toolName,
+    };
+    this.toolBlocks.set(toolCallId, block);
+    this.openBlock = block;
+    event(this.res, "content_block_start", {
+      type: "content_block_start",
+      index: block.index,
+      content_block: {
+        type: "tool_use",
+        id: toolCallId,
+        name: toolName,
+        input: {},
+      },
+    });
+
+    return block;
+  }
+
+  #closeOpenBlock() {
+    if (!this.openBlock) return;
+    event(this.res, "content_block_stop", {
+      type: "content_block_stop",
+      index: this.openBlock.index,
+    });
+    this.openBlock = null;
+  }
+
+  #writeToolInputDelta(block, inputDelta) {
+    if (!inputDelta) return;
+    event(this.res, "content_block_delta", {
+      type: "content_block_delta",
+      index: block.index,
+      delta: { type: "input_json_delta", partial_json: inputDelta },
+    });
+  }
+}
+
+export function writeSseError(res, error, type = "api_error") {
+  event(res, "error", {
+    type: "error",
+    error: {
+      type,
+      message: error instanceof Error ? error.message : String(error),
+    },
+  });
+  res.end();
+}

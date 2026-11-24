@@ -1,0 +1,52 @@
+{
+  "name": "cc-mscp-sdk-v2-gemini",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Hands-on lab: run Claude Code on the four Gemini 4 models of GitHub Copilot through the Microsoft Copilot SDK.",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "bin": {
+    "claude-gemini": "bin/claude-gemini",
+    "claude-gemini-litellm": "bin/claude-gemini-litellm",
+    "claude-gemini-status": "bin/claude-gemini-status",
+    "claude-gemini-stop": "bin/claude-gemini-stop",
+    "claude-gemini-turns": "bin/claude-gemini-turns",
+    "gemini-doctor": "bin/gemini-doctor",
+    "gemini-lab": "bin/gemini-lab",
+    "gemini-litellm": "bin/gemini-litellm",
+    "gemini-models": "bin/gemini-models"
+  },
+  "scripts": {
+    "bridge": "node src/server.mjs",
+    "doctor": "bash bin/gemini-doctor",
+    "doctor:litellm": "bash bin/gemini-doctor --litellm",
+    "models": "node src/list-models.mjs",
+    "litellm:setup": "bash bin/gemini-litellm setup",
+    "litellm:up": "bash bin/gemini-litellm up",
+    "litellm:status": "bash bin/gemini-litellm status",
+    "litellm:down": "bash bin/gemini-litellm down",
+    "test": "node --test test/*.test.mjs",
+    "verify": "node scripts/verify/run.mjs",
+    "verify:plan": "node scripts/verify/run.mjs --dry-run",
+    "verify:report": "node scripts/verify/report.mjs",
+    "verify:litellm": "node scripts/verify/run.mjs --via litellm",
+    "verify:litellm:plan": "node scripts/verify/run.mjs --via litellm --dry-run",
+    "verify:litellm:report": "node scripts/verify/report.mjs --via litellm",
+    "media:record": "node scripts/media/record.mjs",
+    "media:record:litellm": "node scripts/media/record.mjs --via litellm",
+    "media:build": "node scripts/media/build.mjs",
+    "media:build:litellm": "node scripts/media/build.mjs --via litellm",
+    "guide": "node scripts/build-guide.mjs",
+    "guide:litellm": "node scripts/build-guide.mjs --via litellm"
+  },
+  "dependencies": {
+    "@microsoft/copilot-sdk": "2.0.0",
+    "proper-lockfile": "4.1.2"
+  },
+  "devDependencies": {
+    "@xterm/headless": "6.0.0",
+    "playwright-core": "1.63.0-alpha-2026-08-31"
+  }
+}

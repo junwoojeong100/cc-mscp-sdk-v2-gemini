@@ -1,0 +1,8 @@
+{
+  "name": "lab-01-fix-the-bug",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

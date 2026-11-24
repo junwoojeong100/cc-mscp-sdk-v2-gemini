@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Resolve a symlinked launcher (npm link, ~/.local/bin) to its checkout.
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+while [[ -L "$SCRIPT_PATH" ]]; do
+  SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_PATH")" && pwd)"
+  SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
+  [[ "$SCRIPT_PATH" == /* ]] || SCRIPT_PATH="$SCRIPT_DIR/$SCRIPT_PATH"
+done
+ROOT_DIR="$(cd -P "$(dirname "$SCRIPT_PATH")/.." && pwd)"
+source "$ROOT_DIR/bin/resolve-claude.sh"
+
+CLAUDE_CODE_BIN="$(resolve_claude_code_bin "$ROOT_DIR")"
+export CLAUDE_CODE_BIN
+exec node "$ROOT_DIR/src/doctor.mjs" "$@"

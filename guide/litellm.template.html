@@ -1,0 +1,785 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Code로 Gemini 4 쓰기 (LiteLLM 게이트웨이 편) — 실습 가이드</title>
+<meta name="description" content="로컬 노트북 → LiteLLM → 브리지(Microsoft Copilot SDK) → Gemini 4 경로로 Claude Code에서 Gemini 4 모델 4종(Argon · Carbon · Hydrogen · Neon)을 사용하는 실습 가이드">
+<style>
+:root{
+  --bg:#f7f7fb; --fg:#1b1c20; --muted:#5d6068; --card:#ffffff; --line:#e2e4ec; --soft:#f0f1f6;
+  --brand:#5b3df5; --brand-soft:#efeaff; --brand-fg:#ffffff;
+  --ok:#127a38; --ok-soft:#e5f5ea; --warn:#8a5700; --warn-soft:#fff3d4; --bad:#b3261e; --bad-soft:#fde8e6; --tip:#0b5cad; --tip-soft:#e4f0fc;
+  --code-bg:#12141b; --code-fg:#e7e7ea; --shadow:0 1px 2px rgba(20,20,40,.06),0 10px 30px rgba(20,20,40,.07);
+  --radius:14px;
+  color-scheme:light dark;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0e0f13; --fg:#ececf1; --muted:#a3a6b0; --card:#16181e; --line:#2a2d36; --soft:#1d2028;
+    --brand:#a592ff; --brand-soft:#241f4d; --brand-fg:#14102e;
+    --ok:#74d68e; --ok-soft:#10301b; --warn:#f0bc52; --warn-soft:#3a2c09; --bad:#ff8f86; --bad-soft:#3d1713; --tip:#7ab8f5; --tip-soft:#10294a;
+    --code-bg:#0a0b10; --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:20px}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.75 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--brand);text-underline-offset:3px}
+code,kbd,pre{font-family:"SF Mono",Menlo,Consolas,"Apple SD Gothic Neo",monospace}
+code{font-size:.9em;background:var(--soft);padding:.12em .42em;border-radius:6px}
+kbd{display:inline-block;min-width:1.7em;text-align:center;font-size:.85em;padding:.05em .5em;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;background:var(--card)}
+h1,h2,h3{line-height:1.3;letter-spacing:-.02em;margin:0}
+p{margin:.7em 0}
+small{color:var(--muted)}
+.wrap{max-width:1200px;margin:0 auto;padding:0 24px}
+
+/* hero */
+.hero{background:radial-gradient(1200px 400px at 85% -10%,rgba(125,95,255,.28),transparent 60%),linear-gradient(180deg,#17142e,#0f0e1d);color:#f4f3fb;padding:56px 0 40px}
+.hero .eyebrow{display:inline-block;font-size:13px;font-weight:600;letter-spacing:.08em;color:#cfc6ff;background:rgba(255,255,255,.08);padding:5px 12px;border-radius:999px;margin-bottom:18px}
+.hero h1{font-size:clamp(30px,5vw,52px);font-weight:800;margin-bottom:14px}
+.hero h1 em{font-style:normal;background:linear-gradient(90deg,#b9a8ff,#7fd6ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p.lead{font-size:clamp(16px,2vw,20px);color:#d8d6ea;max-width:46em;margin:0 0 22px}
+.badges{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 26px}
+.badge{font-size:13.5px;padding:6px 13px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);color:#f0eefc}
+.badge.ok{background:rgba(46,160,90,.22);border-color:rgba(90,210,130,.5)}
+.cta{display:flex;flex-wrap:wrap;gap:12px}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 20px;border-radius:12px;font-weight:700;text-decoration:none;border:1px solid transparent;cursor:pointer;font-size:15px}
+.btn.primary{background:#7c5cff;color:#fff}
+.btn.ghost{background:rgba(255,255,255,.08);color:#fff;border-color:rgba(255,255,255,.22)}
+
+/* layout */
+.layout{display:grid;grid-template-columns:230px minmax(0,1fr);gap:44px;padding:36px 24px 80px}
+.toc{position:sticky;top:20px;align-self:start;max-height:calc(100vh - 40px);overflow:auto;font-size:14.5px}
+.toc b{display:block;font-size:12px;letter-spacing:.1em;color:var(--muted);margin:0 0 10px 10px}
+.toc a{display:block;padding:6px 10px;border-radius:8px;color:var(--muted);text-decoration:none;line-height:1.4}
+.toc a:hover{background:var(--soft);color:var(--fg)}
+.toc a.active{background:var(--brand-soft);color:var(--brand);font-weight:700}
+.toc .sep{height:1px;background:var(--line);margin:10px 10px}
+main{min-width:0}
+section{margin:0 0 64px}
+section>h2{font-size:28px;margin-bottom:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.step-no{display:inline-flex;align-items:center;justify-content:center;background:var(--brand);color:var(--brand-fg);font-size:13px;font-weight:800;letter-spacing:.04em;border-radius:999px;padding:4px 13px}
+.goal{color:var(--muted);font-size:17px;margin:0 0 18px}
+h3{font-size:19px;margin:30px 0 8px}
+
+/* cards */
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:0 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px 20px 18px;box-shadow:var(--shadow)}
+.card h3{margin:0 0 8px;font-size:18px}
+.card .big{font-family:"SF Mono",Menlo,monospace;font-size:15px;background:var(--code-bg);color:var(--code-fg);display:inline-block;padding:4px 10px;border-radius:8px;margin-bottom:10px}
+.card p,.card li{font-size:15px;line-height:1.65;margin:.3em 0}
+.card ul{padding-left:1.1em;margin:.4em 0 0}
+
+/* code */
+.code{position:relative;background:var(--code-bg);color:var(--code-fg);border-radius:12px;margin:14px 0}
+.code pre{margin:0;padding:16px 92px 16px 18px;overflow:auto;font-size:14.5px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}
+.code .copy{position:absolute;top:10px;right:10px;font:600 12.5px/1 -apple-system,"Apple SD Gothic Neo",sans-serif;color:#d8d8e0;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:8px;padding:7px 11px;cursor:pointer}
+.code .copy:hover{background:rgba(255,255,255,.2)}
+.code .c{color:#8b90a0}
+.code .label{display:block;font:600 12px/1 -apple-system,"Apple SD Gothic Neo",sans-serif;color:#9aa0b4;padding:12px 18px 0;letter-spacing:.04em}
+.code .label+pre{padding-top:10px}
+.code code{background:none;padding:0;font-size:inherit}
+
+/* screenshots */
+figure.shot{margin:18px 0;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow)}
+figure.shot img{display:block;width:100%;height:auto;border-radius:10px;cursor:zoom-in}
+figure.shot figcaption{font-size:14.5px;color:var(--muted);margin:10px 4px 2px;line-height:1.6}
+figure.shot figcaption b{color:var(--fg)}
+figure.shot.small{max-width:530px}
+.zoomhint{font-size:13px;color:var(--muted);margin:6px 0 4px}
+
+/* callouts */
+.callout{border-radius:12px;padding:14px 18px;margin:16px 0;border:1px solid;font-size:15.5px}
+.callout b.t{display:block;margin-bottom:2px}
+.callout.ok{background:var(--ok-soft);border-color:color-mix(in srgb,var(--ok) 35%,transparent)}
+.callout.ok b.t{color:var(--ok)}
+.callout.warn{background:var(--warn-soft);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+.callout.warn b.t{color:var(--warn)}
+.callout.tip{background:var(--tip-soft);border-color:color-mix(in srgb,var(--tip) 35%,transparent)}
+.callout.tip b.t{color:var(--tip)}
+.callout ul{margin:.3em 0 .2em;padding-left:1.2em}
+.callout p{margin:.35em 0}
+
+/* tables */
+.tablewrap{overflow-x:auto;margin:14px 0;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{padding:11px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+thead th{font-size:13px;color:var(--muted);background:var(--soft);white-space:nowrap}
+tbody tr:last-child th,tbody tr:last-child td{border-bottom:0}
+th[scope=row]{font-weight:600}
+th small{display:block;font-weight:400;font-size:12.5px;line-height:1.5;margin-top:2px}
+td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.chip{display:inline-block;font:600 12px/1 "SF Mono",Menlo,monospace;padding:4px 7px;border-radius:6px;background:var(--soft);margin:0 4px 4px 0;color:var(--muted)}
+.chip.hot{background:var(--brand-soft);color:var(--brand)}
+.tag{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:6px;margin-left:8px}
+.tag.warn{background:var(--warn-soft);color:var(--warn)}
+table.verify td{text-align:center;white-space:nowrap}
+table.verify td.ok{color:var(--ok);font-weight:700}
+table.verify td.bad{color:var(--bad);font-weight:700;background:var(--bad-soft)}
+table.verify td small{margin-left:4px;font-weight:400}
+table.effort td{text-align:center;white-space:nowrap}
+table.effort td.lowered{color:var(--warn);font-weight:700}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:16px 0}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow)}
+.stat b{display:block;font-size:26px;line-height:1.2;letter-spacing:-.02em}
+.stat span{font-size:13.5px;color:var(--muted)}
+.stat.ok b{color:var(--ok)}
+dl.env{display:grid;grid-template-columns:130px 1fr;gap:6px 14px;margin:12px 0;font-size:15px}
+dl.env dt{color:var(--muted)} dl.env dd{margin:0}
+ul.invariants{list-style:none;padding:0;margin:10px 0;font-size:15px}
+ul.invariants li{padding:3px 0}
+ul.invariants li.ok{color:var(--ok)}
+ul.invariants li.bad{color:var(--bad)}
+
+/* video */
+.video{background:#000;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.video video{display:block;width:100%;height:auto;aspect-ratio:16/9;background:#000}
+.chapters{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 4px}
+.chapters button{font:600 13.5px/1 -apple-system,"Apple SD Gothic Neo",sans-serif;padding:9px 13px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}
+.chapters button:hover{border-color:var(--brand);color:var(--brand)}
+.chapters button.on{background:var(--brand);color:var(--brand-fg);border-color:var(--brand)}
+
+/* diagrams */
+.diagram{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);margin:16px 0}
+.diagram svg{display:block;width:100%;height:auto}
+.diagram .box{fill:var(--card);stroke:var(--line);stroke-width:1.5}
+.diagram .brand{fill:var(--brand-soft);stroke:var(--brand);stroke-width:1.8}
+.diagram .gem{fill:var(--ok-soft);stroke:var(--ok);stroke-width:1.5}
+.diagram .group{fill:none;stroke:var(--ok);stroke-width:1.5;stroke-dasharray:7 6}
+.diagram .t1{fill:var(--fg);font:700 19px -apple-system,"Apple SD Gothic Neo",sans-serif}
+.diagram .t2{fill:var(--muted);font:500 14.5px -apple-system,"Apple SD Gothic Neo",sans-serif}
+.diagram .t3{fill:var(--muted);font:600 13.5px -apple-system,"Apple SD Gothic Neo",sans-serif}
+.diagram .t3b{fill:var(--brand);font:600 13.5px -apple-system,"Apple SD Gothic Neo",sans-serif}
+.diagram .tg{fill:var(--ok);font:700 15px -apple-system,"Apple SD Gothic Neo",sans-serif}
+.diagram .line{stroke:var(--muted);stroke-width:2;fill:none}
+.diagram .dash{stroke:var(--brand);stroke-width:2;fill:none;stroke-dasharray:6 5}
+.diagram .ah{fill:var(--muted)}
+.diagram .ahb{fill:var(--brand)}
+
+details{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:4px 16px;margin:12px 0}
+details summary{cursor:pointer;font-weight:700;padding:10px 0}
+ul.plain{padding-left:1.25em;margin:.5em 0}
+ul.plain li{margin:.3em 0}
+footer{border-top:1px solid var(--line);padding:28px 0 60px;color:var(--muted);font-size:14px}
+dialog#zoom{border:0;padding:0;background:transparent;max-width:96vw;max-height:94vh}
+dialog#zoom::backdrop{background:rgba(5,5,12,.82)}
+dialog#zoom img{display:block;max-width:96vw;max-height:92vh;border-radius:10px;cursor:zoom-out}
+
+@media (max-width:980px){
+  .layout{grid-template-columns:1fr;gap:10px}
+  .toc{position:static;max-height:none;display:flex;gap:6px;overflow-x:auto;margin:0 -24px;padding:0 24px 8px}
+  .toc b,.toc .sep{display:none}
+  .toc a{white-space:nowrap;background:var(--card);border:1px solid var(--line)}
+  .cards,.stats{grid-template-columns:1fr 1fr}
+}
+@media (max-width:620px){ .cards,.stats{grid-template-columns:1fr} .code pre{padding-right:18px} .code .copy{position:static;margin:0 0 12px 14px} }
+@media print{
+  .toc,.cta,.copy,.chapters,.video{display:none!important}
+  .layout{display:block} body{background:#fff;color:#000} figure.shot,.card,.callout,.diagram{box-shadow:none;break-inside:avoid}
+}
+</style>
+</head>
+<body id="top">
+
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow">실습 가이드 · Claude Code × LiteLLM × Microsoft Copilot SDK</span>
+    <h1>Claude Code로 <em>Gemini 4</em> 쓰기 <small style="font-size:.5em;font-weight:600;opacity:.85">— LiteLLM 게이트웨이 편</small></h1>
+    <p class="lead">내 노트북에서 <b>Claude Code → LiteLLM → 브리지(Copilot SDK) → Gemini 4</b> 경로로 GitHub Copilot의 Gemini 4 모델 4종(Argon · Carbon · Hydrogen · Neon)을 씁니다. 먼저 나온 <a href="guide.html" style="color:inherit">직접 연결 가이드</a>와 같은 실습을 LiteLLM 게이트웨이를 한 겹 끼워서 따라 합니다. 핵심 단계마다 실제 실행 화면과 “이렇게 보이면 성공” 기준이 있습니다.</p>
+    <div class="badges">
+      <span class="badge ok">✓ 실제 호출로 검증 · {{case-count}}개 케이스 통과</span>
+      <span class="badge">Claude Code {{claude-version}}</span>
+      <span class="badge">LiteLLM {{litellm-version}}</span>
+      <span class="badge">{{sdk-package}} {{sdk-version}}</span>
+      <span class="badge">검증일 {{verify-date}}</span>
+    </div>
+    <div class="cta">
+      <a class="btn primary" href="#video">▶ 영상으로 먼저 보기</a>
+      <a class="btn ghost" href="#s1">바로 실습 시작 →</a>
+      <a class="btn ghost" href="guide.html">직접 연결 편 →</a>
+    </div>
+  </div>
+</header>
+
+<div class="wrap layout">
+  <nav class="toc" aria-label="목차">
+    <b>목차</b>
+    <a href="#summary">한눈에 보기</a>
+    <a href="#video">영상</a>
+    <a href="#how">구조</a>
+    <a href="#models">모델 4종</a>
+    <div class="sep"></div>
+    <a href="#prep">준비물</a>
+    <a href="#s1">STEP 1 · 설치 (LiteLLM)</a>
+    <a href="#s2">STEP 2 · 점검</a>
+    <a href="#s3">STEP 3 · 게이트웨이 시작</a>
+    <a href="#s4">STEP 4 · 첫 호출</a>
+    <a href="#s5">STEP 5 · 대화형 시작</a>
+    <a href="#s6">STEP 6 · 모델 전환</a>
+    <a href="#s7">STEP 7 · 코딩 실습</a>
+    <a href="#s8">STEP 8 · 이미지 읽기</a>
+    <a href="#s9">STEP 9 · 정리</a>
+    <div class="sep"></div>
+    <a href="#effort">추론 강도</a>
+    <a href="#verify">검증 결과</a>
+    <a href="#trouble">문제 해결</a>
+    <a href="#limits">한계와 범위</a>
+    <a href="#cheatsheet">명령 요약</a>
+  </nav>
+
+  <main>
+
+  <section id="summary">
+    <h2>한눈에 보기</h2>
+    <p class="goal">결론부터: <b>Claude Code는 그대로, 모델만 Gemini 4로, 그 사이에 LiteLLM 게이트웨이.</b> 게이트웨이를 켜 두면 Claude Code가 Anthropic 호환 API로 LiteLLM에 말을 걸고, 뒤에서 로컬 브리지가 Copilot SDK로 Gemini 4를 호출합니다.</p>
+    <div class="cards">
+      <div class="card">
+        <h3>① 두 줄로 실행</h3>
+        <span class="big">gemini-litellm up</span>
+        <span class="big">claude-gemini-litellm</span>
+        <p>앞 명령이 브리지와 LiteLLM을 켜고, 뒤 명령이 Claude Code를 게이트웨이에 연결합니다. Anthropic 키는 필요 없고 <b>GitHub Copilot 로그인</b>만 있으면 됩니다.</p>
+      </div>
+      <div class="card">
+        <h3>② 4개 모델 모두 검증</h3>
+        <p>Argon · Carbon · Hydrogen · Neon 에서 <b>대화 · 코딩(도구 사용) · 이미지 · 서브에이전트 · 모델 전환 · 게이트웨이 명령</b>을 {{case-count}}개 케이스, {{check-count}}개 검사로 LiteLLM 경유 상태에서 확인했습니다. <a href="#verify">결과 보기</a></p>
+      </div>
+      <div class="card">
+        <h3>③ 먼저 알아둘 3가지</h3>
+        <ul>
+          <li><b>비공식</b> 구성입니다 (Anthropic·GitHub·LiteLLM 지원 대상 아님)</li>
+          <li><code>/model</code> 에서는 <kbd>Enter</kbd> 말고 <kbd>s</kbd> 를 누르세요</li>
+          <li>LiteLLM은 <b>로컬에서만</b> 열립니다 (127.0.0.1, 마스터 키 인증)</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="video">
+    <h2>영상으로 먼저 보기</h2>
+    <p class="goal">전체 실습을 한 번에 보여 주는 화면 녹화입니다(약 {{video-length}}). 실제 터미널 세션을 기록한 것이고, 기다리는 구간만 배속으로 줄였습니다(화면에 배속 표시).</p>
+    <div class="video">
+      <video id="demo" controls preload="metadata" poster="{{poster}}">
+        <source src="assets/litellm/demo.mp4" type="video/mp4">
+        브라우저가 video 태그를 지원하지 않습니다. <a href="assets/litellm/demo.mp4">assets/litellm/demo.mp4</a> 를 직접 여세요.
+      </video>
+    </div>
+    <div class="chapters" id="chapters" aria-label="영상 챕터"></div>
+    <p class="zoomhint">영상 파일은 이 HTML과 같은 위치 기준 <code>assets/litellm/demo.mp4</code> 입니다. 두 파일(폴더)을 함께 두세요.</p>
+  </section>
+
+  <section id="how">
+    <h2>구조 — 요청은 이렇게 흐릅니다</h2>
+    <p class="goal">Claude Code는 Anthropic API 서버 대신 <b>내 컴퓨터의 LiteLLM</b>에 말을 겁니다. LiteLLM은 요청을 <b>로컬 브리지</b>로 넘기고, 브리지가 Microsoft Copilot SDK(구 GitHub Copilot SDK)를 통해 Gemini 4를 호출합니다. 세 프로세스 모두 노트북 안(127.0.0.1)에서 돕니다.</p>
+    <div class="diagram">
+      <svg viewBox="0 0 1120 380" role="img" aria-label="Claude Code에서 LiteLLM 게이트웨이, 로컬 브리지, Copilot SDK, GitHub Copilot을 거쳐 Gemini 4 모델 4종으로 가는 요청 경로">
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker>
+          <marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10z" class="ahb"/></marker>
+        </defs>
+        <rect class="box" x="8" y="40" width="190" height="136" rx="16"/>
+        <text class="t1" x="103" y="78" text-anchor="middle">Claude Code</text>
+        <text class="t2" x="103" y="106" text-anchor="middle">터미널 UI · 대화 기록</text>
+        <text class="t2" x="103" y="128" text-anchor="middle">도구 실행 · 권한 · 훅</text>
+        <text class="t2" x="103" y="150" text-anchor="middle">MCP · 스킬</text>
+
+        <rect class="brand" x="262" y="40" width="210" height="136" rx="16"/>
+        <text class="t1" x="367" y="78" text-anchor="middle">LiteLLM 게이트웨이</text>
+        <text class="t2" x="367" y="106" text-anchor="middle">127.0.0.1:4000 · 키 인증</text>
+        <text class="t2" x="367" y="128" text-anchor="middle">별칭 gemini-4-* 4개</text>
+        <text class="t2" x="367" y="150" text-anchor="middle">요청 로그</text>
+
+        <rect class="box" x="536" y="40" width="190" height="136" rx="16"/>
+        <text class="t1" x="631" y="78" text-anchor="middle">로컬 브리지</text>
+        <text class="t2" x="631" y="106" text-anchor="middle">Node.js · 127.0.0.1</text>
+        <text class="t2" x="631" y="128" text-anchor="middle">Messages API ⇄ SDK</text>
+        <text class="t2" x="631" y="150" text-anchor="middle">src/server.mjs</text>
+
+        <rect class="box" x="790" y="40" width="160" height="136" rx="16"/>
+        <text class="t1" x="870" y="78" text-anchor="middle">Copilot SDK</text>
+        <text class="t2" x="870" y="106" text-anchor="middle">{{sdk-package}}</text>
+        <text class="t2" x="870" y="128" text-anchor="middle">런타임 {{runtime-version}}</text>
+
+        <rect class="box" x="1010" y="40" width="102" height="136" rx="16"/>
+        <text class="t1" x="1061" y="78" text-anchor="middle">GitHub</text>
+        <text class="t1" x="1061" y="102" text-anchor="middle">Copilot</text>
+        <text class="t3" x="1061" y="134" text-anchor="middle">로그인 계정</text>
+        <text class="t3" x="1061" y="154" text-anchor="middle">모델 정책</text>
+
+        <path class="line" d="M198 100 L260 100" marker-end="url(#ah)"/>
+        <text class="t3" x="229" y="82" text-anchor="middle">Messages</text>
+        <text class="t3" x="229" y="124" text-anchor="middle">API</text>
+        <path class="line" d="M472 100 L534 100" marker-end="url(#ah)"/>
+        <text class="t3" x="503" y="82" text-anchor="middle">Messages</text>
+        <text class="t3" x="503" y="124" text-anchor="middle">API</text>
+        <path class="line" d="M726 100 L788 100" marker-end="url(#ah)"/>
+        <text class="t3" x="757" y="84" text-anchor="middle">SDK</text>
+        <path class="line" d="M950 100 L1008 100" marker-end="url(#ah)"/>
+        <text class="t3" x="979" y="84" text-anchor="middle">HTTPS</text>
+
+        <path class="dash" d="M300 176 C 270 246, 140 246, 110 184" marker-end="url(#ahb)"/>
+        <text class="t3b" x="205" y="290" text-anchor="middle">도구 호출 요청 → Claude Code가 로컬에서 실행 → 결과 전달</text>
+        <text class="t3" x="205" y="314" text-anchor="middle">(Read · Edit · Bash — 모델은 실행하지 않고 요청만 합니다)</text>
+
+        <path class="line" d="M1061 176 L1061 222" marker-end="url(#ah)"/>
+        <rect class="group" x="660" y="226" width="452" height="124" rx="16"/>
+        <text class="t3" x="676" y="248" style="fill:var(--ok)">Gemini 4 — 고른 모델 1개가 응답</text>
+        <rect class="gem" x="676" y="260" width="206" height="38" rx="10"/><text class="tg" x="779" y="285" text-anchor="middle">Gemini 4 Argon</text>
+        <rect class="gem" x="892" y="260" width="206" height="38" rx="10"/><text class="tg" x="995" y="285" text-anchor="middle">Gemini 4 Carbon</text>
+        <rect class="gem" x="676" y="306" width="206" height="38" rx="10"/><text class="tg" x="779" y="331" text-anchor="middle">Gemini 4 Hydrogen</text>
+        <rect class="gem" x="892" y="306" width="206" height="38" rx="10"/><text class="tg" x="995" y="331" text-anchor="middle">Gemini 4 Neon</text>
+      </svg>
+    </div>
+    <ul class="plain">
+      <li><b>LiteLLM이 하는 일.</b> 모델 <b>별칭</b> 4개(<code>gemini-4-argon</code> … <code>gemini-4-neon</code>)를 받아 같은 이름으로 브리지에 넘기고, 마스터 키로 <b>인증</b>하고, 요청마다 <b>로그</b>를 남깁니다(STEP 6의 <code>gemini-litellm logs</code>). 브리지의 토큰은 LiteLLM만 알고, Claude Code는 LiteLLM의 키만 가집니다.</li>
+      <li><b>설정은 건드리지 않습니다.</b> <code>claude-gemini-litellm</code> 은 실행할 때마다 설정 파일(권한 600, LiteLLM 키 포함)을 만들어 <code>--settings</code> 로 넘깁니다. print 모드(<code>-p</code>)는 끝나면 바로 지우고, 대화형은 <code>gemini-litellm down</code> 이 지웁니다. <code>~/.claude/settings.json</code> 은 그대로입니다.</li>
+      <li><b>별칭에는 <code>claude-</code> 도 <code>[1m]</code> 도 붙지 않습니다.</b> LiteLLM 경로에서는 <code>/model</code> 목록(<code>modelPicker</code>)을 설정 파일에 직접 적기 때문에 모델 이름이 <code>gemini-4-neon</code> 그대로입니다. 대신 Claude Code가 모르는 이름이라 <b>컨텍스트 창을 1M 토큰으로 가정</b>한다는 안내가 한 줄 뜹니다(Gemini 4의 실제 창과 같아서 그대로 둡니다).</li>
+      <li><b>Claude Code 안의 별칭도 Gemini 4로 고정</b>됩니다. <code>opus</code>→Neon, <code>sonnet</code>→Carbon, <code>haiku</code>→Hydrogen (카탈로그 단가 순서일 뿐 성능 순위가 아닙니다). Claude Code가 알아서 보내는 작은 요청도 Gemini 4 밖으로 나가지 않습니다.</li>
+      <li><b>LiteLLM은 두 가지를 꼭 켜 둡니다.</b> ① <code>forward_client_headers_to_llm_api</code> — 세션·서브에이전트 ID 헤더를 브리지까지 전달해야 대화를 구분합니다. ② 모델별 <code>model_info</code> — 없으면 LiteLLM이 Claude Code의 추론 강도(effort) 설정을 버립니다. 설정은 <code>examples/litellm-gemini.yaml</code> 에 있습니다.</li>
+    </ul>
+  </section>
+
+  <section id="models">
+    <h2>Gemini 4 모델 4종</h2>
+    <p class="goal">아래 표는 <code>gemini-models</code> 가 이 계정의 Copilot 카탈로그에서 읽은 값입니다(검증일 기준).</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>모델 ID</th><th>컨텍스트 창</th><th>입력 한도</th><th>출력 한도</th><th>이미지</th><th>추론 강도(effort)</th><th>짧은 응답 시간*</th></tr></thead>
+        <tbody>{{models:rows}}</tbody>
+      </table>
+    </div>
+    <ul class="plain">
+      <li><b>입력 한도</b>는 한 번에 넣을 수 있는 입력 토큰 수입니다. 검증에서 런타임이 실제로 부여한 한도가 카탈로그의 이 값과 같음을 확인했습니다(긴 컨텍스트 티어).</li>
+      <li><b>effort</b> 의 <span class="chip hot">xhigh</span> 는 네 모델 모두 <code>high</code> 로 낮춰 적용됩니다. SDK 런타임이 <code>xhigh</code> 를 거부하기 때문입니다(<a href="#effort">자세히</a>).</li>
+      <li>*짧은 한글 응답 1회를 잰 값입니다. 호출마다 편차가 큽니다. 이 실행에서는 Hydrogen이 모든 시나리오에서 가장 빨랐고, 도구를 쓰는 코딩·서브에이전트 시나리오에서는 Carbon이 가장 오래 걸렸습니다(<a href="#verify">검증 결과 표</a>). 1분을 넘긴 호출도 있었습니다.</li>
+      <li>Argon은 카탈로그에 <b>2026-12-14 지원 중단 예고</b>가 있습니다. 중단되면 <code>/model</code> 목록에서 자동으로 빠지고, Claude Code 별칭은 Argon을 쓰지 않으므로 나머지 실습은 그대로 동작합니다.</li>
+    </ul>
+  </section>
+
+  <section id="prep">
+    <h2>준비물</h2>
+    <p class="goal">아래가 모두 있으면 20분이면 끝납니다.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>항목</th><th>확인 명령</th><th>기준</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Node.js</th><td><code>node -v</code></td><td>20.19 이상, 또는 22.12 이상</td></tr>
+          <tr><th scope="row">Claude Code</th><td><code>claude --version</code></td><td>이 실습은 <b>{{claude-version}}</b> 에서 검증. Claude Code는 스스로 업데이트되므로 버전이 다르면 화면이 조금 달라질 수 있습니다</td></tr>
+          <tr><th scope="row">GitHub Copilot CLI</th><td><code>copilot --version</code></td><td>없으면 <code>npm install -g @github/copilot</code></td></tr>
+          <tr><th scope="row">uv · Python 3.13</th><td><code>uv --version</code></td><td>LiteLLM을 이 저장소 안에 설치할 때 씁니다(STEP 1). 없으면 <code>brew install uv</code>. Python 3.13은 uv가 찾거나 내려받습니다</td></tr>
+          <tr><th scope="row">Copilot 사용 권한</th><td><code>gemini-doctor --litellm</code> (STEP 2)</td><td>Gemini 4 모델이 계정·조직 정책에서 허용돼 있어야 함</td></tr>
+          <tr><th scope="row">운영체제</th><td>—</td><td>검증 환경은 macOS(Apple Silicon). Windows 기본 셸은 지원하지 않습니다</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout tip"><b class="t">Anthropic 계정·API 키는 필요 없습니다</b>
+      <p>인증은 Copilot CLI에 로그인한 GitHub 계정 하나입니다. 계정이 여러 개라면 <code>gh</code> 의 활성 계정이 아니라 <code>copilot login</code> 으로 로그인한 계정이 쓰입니다.</p></div>
+  </section>
+
+  <section id="s1">
+    <h2><span class="step-no">STEP 1</span>설치 — 의존성과 LiteLLM</h2>
+    <p class="goal">의존성을 설치하고, LiteLLM을 이 저장소 안(<code>.runtime/</code>, git 제외)에 한 번 설치하고, 이 터미널에서 명령들을 바로 쓸 수 있게 합니다.</p>
+    <div class="code"><span class="label">터미널 — 이 저장소 폴더에서</span><pre><code>cd {{repo-name}}
+npm ci
+export PATH="$PWD/bin:$PATH"   <span class="c"># 이 터미널에서만 유효 · 이후 명령은 이 줄을 전제로 합니다</span>
+gemini-litellm setup           <span class="c"># LiteLLM 설치 (처음 한 번, 1~2분)</span></code></pre></div>
+    <figure class="shot">
+      <img src="{{img:setup}}" alt="gemini-litellm setup 실행 화면: SHA-256 검증 후 LiteLLM 설치, 끝에 LiteLLM is ready">
+      <figcaption><b>gemini-litellm setup</b> — 고정된 버전({{litellm-version}})의 설치 파일을 받아 <b>SHA-256 해시가 일치할 때만</b> 설치합니다. 마지막 줄이 <code>LiteLLM {{litellm-version}} is ready</code> 이면 성공입니다.</figcaption>
+    </figure>
+    <div class="callout ok"><b class="t">이렇게 되면 성공</b>
+      <ul><li><code>npm ci</code> 가 오류 없이 끝납니다 (Copilot SDK <code>{{sdk-version}}</code> 고정).</li>
+      <li><code>command -v claude-gemini-litellm</code> 이 이 저장소의 <code>bin/claude-gemini-litellm</code> 경로를 출력합니다.</li>
+      <li><code>gemini-litellm setup</code> 가 <code>is ready</code> 로 끝나고, 같은 명령을 다시 실행해도 안전합니다(이미 설치돼 있으면 건너뜁니다).</li></ul></div>
+    <div class="callout warn"><b class="t">LiteLLM은 공급망 보안에 민감한 패키지입니다</b>
+      <p>그래서 설치기는 버전을 고정하고(<code>litellm=={{litellm-version}}</code>), 플랫폼별 <b>SHA-256 해시</b>가 다르면 설치를 거부합니다(<code>pip --require-hashes</code>). 패키지 저장소는 <code>pip</code> 설정을 그대로 따르므로, 사내 미러를 쓰는 환경에서도 같은 명령으로 됩니다.</p></div>
+    <p><small><code>claude</code> 명령은 바꾸지 않습니다. Gemini 4로 실행할 때만 <code>claude-gemini-litellm</code> 을 쓰고, 평소의 <code>claude</code> 는 그대로입니다.</small></p>
+  </section>
+
+  <section id="s2">
+    <h2><span class="step-no">STEP 2</span>점검 — 환경과 모델 확인</h2>
+    <p class="goal">두 명령으로 “지금 바로 쓸 수 있는지”와 “Gemini 4 모델 4개가 보이는지”를 확인합니다. <code>--litellm</code> 을 붙이면 LiteLLM 관련 항목(uv · 설치 버전 · 마스터 키 · 게이트웨이)도 함께 봅니다.</p>
+    <div class="code"><span class="label">터미널</span><pre><code>copilot login               <span class="c"># 처음 한 번만 (브라우저로 인증)</span>
+gemini-doctor --litellm     <span class="c"># 환경 점검 (LiteLLM 포함)</span>
+gemini-models               <span class="c"># 이 계정의 Gemini 4 모델 목록</span></code></pre></div>
+    <figure class="shot">
+      <img src="{{img:doctor}}" alt="gemini-doctor --litellm 실행 화면: Node, npm, Claude Code, Copilot CLI, SDK, 로그인, Gemini 4 모델 4개, uv, LiteLLM, 마스터 키가 ✓ 이고 게이트웨이만 !">
+      <figcaption><b>gemini-doctor --litellm</b> — 모든 줄이 <b>✓</b> 이면 준비 끝입니다. 맨 아래 <b>LiteLLM gateway</b> 줄의 <b>!</b> 는 아직 게이트웨이를 켜지 않았다는 뜻이라 지금은 정상입니다(다음 단계에서 켭니다). <b>✗</b> 는 반드시 해결하세요. 계정명은 가렸습니다.</figcaption>
+    </figure>
+    <figure class="shot">
+      <img src="{{img:models}}" alt="gemini-models 실행 화면: Gemini 4 Argon, Carbon, Hydrogen, Neon 4개 모델과 컨텍스트, 출력 한도, 이미지 지원, effort">
+      <figcaption><b>gemini-models</b> — <b>Gemini 4 모델 4개</b>가 보이는지 확인합니다. <code>POLICY</code> 가 <code>-</code> 이면 별도 정책 항목이 없는 모델이고, <code>disabled</code> 라면 GitHub Copilot 설정에서 켜야 합니다.</figcaption>
+    </figure>
+    <div class="callout warn"><b class="t">Signed in as … 가 내가 쓰려는 계정인지 확인하세요</b>
+      <p>Copilot 로그인은 <code>gh</code> 의 활성 계정과 별개입니다. 다르면 <code>copilot login</code> 으로 다시 로그인하세요. 또 Copilot CLI 세션 안에서 이 명령들을 실행하면 <code>COPILOT_CLI_PATH</code> 가 상속돼 경고가 나옵니다 — 새 터미널을 쓰거나 <code>unset COPILOT_CLI_PATH</code> 하세요.</p></div>
+  </section>
+
+  <section id="s3">
+    <h2><span class="step-no">STEP 3</span>게이트웨이 시작 — 브리지와 LiteLLM 켜기</h2>
+    <p class="goal">한 명령으로 <b>브리지</b>와 그 앞의 <b>LiteLLM</b>을 켭니다. 게이트웨이는 백그라운드에서 계속 돌고, Claude Code는 이 주소(<code>127.0.0.1:4000</code>)로 접속합니다.</p>
+    <div class="code"><span class="label">터미널</span><pre><code>gemini-litellm up        <span class="c"># 브리지 → LiteLLM 순서로 시작 (10초 안팎)</span>
+gemini-litellm status    <span class="c"># 상태 확인</span></code></pre></div>
+    <figure class="shot">
+      <img src="{{img:gateway-up}}" alt="gemini-litellm up 실행 화면: Bridge, LiteLLM, Models 세 줄이 ✓ 이고 Claude Code → LiteLLM → bridge → Copilot SDK → Gemini 4 경로가 출력됨">
+      <figcaption><b>gemini-litellm up</b> — <b>Bridge</b> · <b>LiteLLM</b> · <b>Models</b> 세 줄이 모두 <b>✓</b> 이면 성공입니다. 마지막 줄이 요청 경로를 그대로 보여 줍니다. 같은 명령을 다시 실행하면 이미 떠 있는 게이트웨이를 그대로 씁니다.</figcaption>
+    </figure>
+    <figure class="shot">
+      <img src="{{img:gateway-status}}" alt="gemini-litellm status 실행 화면: LiteLLM running, Bridge running, Chain 일치, Models 4개">
+      <figcaption><b>gemini-litellm status</b> — <b>Chain</b> 줄은 LiteLLM이 브리지의 <b>현재 토큰</b>을 들고 있다는 뜻입니다. 브리지가 다시 시작되면 <code>gemini-litellm up</code> 이 LiteLLM도 함께 다시 시작해 맞춥니다. <b>Models</b> 에 별칭 4개가 보여야 합니다.</figcaption>
+    </figure>
+    <p>LiteLLM이 읽는 설정은 이 저장소의 <code>examples/litellm-gemini.yaml</code> 입니다. 별칭 하나는 이런 모양이고, 나머지 3개도 같습니다.</p>
+    <div class="code"><span class="label">examples/litellm-gemini.yaml (일부)</span><pre><code>model_list:
+  - model_name: gemini-4-neon                 <span class="c"># Claude Code가 부르는 별칭</span>
+    litellm_params:
+      model: anthropic/gemini-4-neon          <span class="c"># 브리지로 보낼 때의 모델 ID</span>
+      api_base: os.environ/GHCP_BRIDGE_URL    <span class="c"># 브리지 주소 (gemini-litellm up 이 넣어 줌)</span>
+      extra_headers:                          <span class="c"># 토큰은 api_key 가 아닌 헤더로 (이유는 아래)</span>
+        x-api-key: os.environ/GHCP_BRIDGE_TOKEN
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  forward_client_headers_to_llm_api: true     <span class="c"># 세션·서브에이전트 ID 헤더를 브리지까지 전달</span></code></pre></div>
+    <div class="callout warn"><b class="t">토큰을 <code>api_key</code> 에 넣지 않은 이유 — 대화가 Anthropic으로 나갈 수 있습니다</b>
+      <p>LiteLLM은 <code>anthropic/</code> 경로에 <code>api_key</code> 가 있으면, Claude Code가 보내는 토큰 수 계산 요청(<code>/v1/messages/count_tokens</code>)을 <b>설정한 브리지가 아니라 <code>api.anthropic.com</code> 으로</b> 보냅니다. 대화 전체와 그 키가 함께 나갑니다. 그래서 이 설정은 토큰을 헤더로만 보내고 <code>api_key</code> 를 두지 않습니다. 그러면 LiteLLM이 안에서 추정값으로 답하고 아무것도 밖으로 나가지 않습니다. 이 파일을 고칠 때 <code>api_key</code> 를 추가하지 마세요(단위 테스트와 검증 시나리오가 확인합니다).</p></div>
+    <div class="callout tip"><b class="t">포트가 이미 쓰이고 있으면</b>
+      <p>LiteLLM 기본 포트는 4000 입니다. 다른 프로그램이 쓰고 있으면 <code>gemini-litellm up --port 4100</code> 으로 바꾸고, 이후 Claude Code 쪽은 <code>--litellm-base-url http://127.0.0.1:4100</code> 을 붙입니다.</p></div>
+  </section>
+
+  <section id="s4">
+    <h2><span class="step-no">STEP 4</span>첫 호출 — 한 번 묻고 끝내기</h2>
+    <p class="goal">print 모드(<code>-p</code>)로 질문 하나를 보내 Gemini 4가 답하는지 봅니다. 모델은 <code>--litellm-model</code> 로 고릅니다(LiteLLM 별칭 이름).</p>
+    <div class="code"><span class="label">터미널</span><pre><code>claude-gemini-litellm --litellm-model gemini-4-hydrogen -p "한국의 수도는 어디인가요? 한 단어로만 답해줘."</code></pre></div>
+    <figure class="shot">
+      <img src="{{img:print-one}}" alt="claude-gemini-litellm -p 실행 결과: Claude Code가 모델을 모른다는 안내와 답변 서울">
+      <figcaption>답이 나오면 연결 성공입니다. 위의 노란 <code>Claude Code doesn't recognize the model "gemini-4-hydrogen"…</code> 안내(와 그 아래 <code>[claude-code:unrecognized_model]</code> 줄)는 Claude Code가 모르는 모델 이름이라 <b>컨텍스트 창을 1M 토큰으로 가정</b>한다는 <b>정상 안내</b>(stderr)입니다. Gemini 4의 실제 창(약 100만 토큰)과 같아서 그대로 둡니다.</figcaption>
+    </figure>
+    <h3>4개 모델에 같은 질문 던져 보기</h3>
+    <div class="code"><span class="label">터미널</span><pre><code>for m in gemini-4-argon gemini-4-carbon gemini-4-hydrogen gemini-4-neon; do
+  echo "== $m"
+  claude-gemini-litellm --litellm-model "$m" -p "한국의 수도는 어디인가요? 한 단어로만 답해줘." 2&gt;/dev/null
+done</code></pre></div>
+    <figure class="shot">
+      <img src="{{img:print-four}}" alt="4개 모델에 같은 질문을 연속으로 보낸 결과: 모두 서울">
+      <figcaption>4개 모두 응답하면 됩니다. <code>2&gt;/dev/null</code> 은 위의 정상 안내 줄을 숨기는 옵션입니다.</figcaption>
+    </figure>
+    <div class="callout tip"><b class="t">모델을 안 고르면?</b>
+      <p>기본값은 <code>gemini-4-hydrogen</code> (이 실행에서 가장 빨랐고 카탈로그 단가가 가장 낮음)입니다. 바꾸려면 <code>--litellm-model</code> 또는 <code>export LITELLM_MODEL=gemini-4-neon</code>. 게이트웨이 주소와 키는 <code>LITELLM_BASE_URL</code> · <code>LITELLM_API_KEY</code> 로 바꿀 수 있고, 이 노트북의 게이트웨이면 <code>gemini-litellm setup</code> 이 만든 마스터 키를 알아서 읽습니다.</p></div>
+  </section>
+
+  <section id="s5">
+    <h2><span class="step-no">STEP 5</span>대화형으로 시작</h2>
+    <p class="goal">연습용 폴더를 만들고 Claude Code를 대화형으로 엽니다. 폴더는 <code>gemini-lab</code> 이 복사해 주고 git 기록까지 시작해 줍니다(나중에 <code>git diff</code> 로 변경을 보기 위해서).</p>
+    <div class="code"><span class="label">터미널</span><pre><code>gemini-lab 01 &amp;&amp; cd /tmp/lab-01     <span class="c"># 연습 폴더 복사 + git 기록 시작</span>
+claude-gemini-litellm                  <span class="c"># 게이트웨이가 켜져 있어야 합니다 (STEP 3)</span></code></pre></div>
+    <p>Claude Code를 <b>처음 쓰는 환경</b>이면 ①~③ 첫 실행 화면이 나옵니다. ④ 폴더 신뢰는 <b>새 폴더를 처음 열 때마다</b> 나옵니다. 이미 Claude Code를 써 왔다면 ④만 보일 수 있습니다.</p>
+    <figure class="shot"><img src="{{img:first-theme}}" alt="첫 실행 1단계: 테마 선택"><figcaption><b>① 테마</b> — 아무거나 고르고 <kbd>Enter</kbd></figcaption></figure>
+      <figure class="shot"><img src="{{img:first-security}}" alt="첫 실행 2단계: 보안 안내"><figcaption><b>② 보안 안내</b> — <kbd>Enter</kbd></figcaption></figure>
+    <figure class="shot"><img src="{{img:first-terminal}}" alt="첫 실행 3단계: 터미널 설정 제안"><figcaption><b>③ 터미널 설정 제안</b> — <kbd>Esc</kbd> 로 건너뜁니다 (수락하면 터미널 설정이 바뀝니다)</figcaption></figure>
+    <figure class="shot"><img src="{{img:first-trust}}" alt="폴더 신뢰 확인, 기본 선택은 No, exit"><figcaption><b>④ 폴더 신뢰</b> — 기본 선택이 <b>No, exit</b> 입니다. <kbd>↓</kbd> 로 <b>Yes, I trust this folder</b> 를 고른 뒤 <kbd>Enter</kbd></figcaption></figure>
+    <figure class="shot"><img src="{{img:first-trust-yes}}" alt="폴더 신뢰 확인에서 Yes, I trust this folder 가 선택된 화면"><figcaption><kbd>↓</kbd> 를 한 번 누르면 이렇게 <b>Yes, I trust this folder</b> 가 선택됩니다. 이 상태에서 <kbd>Enter</kbd> 를 누르세요.</figcaption></figure>
+    <div class="callout warn"><b class="t">④에서 그냥 Enter 를 누르면 종료됩니다</b>
+      <p>폴더 신뢰 화면은 <b>“No, exit”</b> 이 미리 선택돼 있습니다. 반드시 <kbd>↓</kbd> 를 먼저 누르세요. 이 폴더는 방금 만든 연습용이라 신뢰해도 안전합니다.</p></div>
+    <figure class="shot">
+      <img src="{{img:tui-start}}" alt="Claude Code 시작 화면: 헤더에 LiteLLM · Gemini 4 Hydrogen, 그 아래 모델을 모른다는 노란 경고 한 줄">
+      <figcaption>프롬프트(<code>❯</code>)가 보이고 헤더에 <b>LiteLLM · Gemini 4 Hydrogen</b> 이 보이면 성공입니다. 헤더 아래 노란 <code>⚠ Model "gemini-4-hydrogen" isn't recognized · context assumed to be 1m tokens</code> 줄은 STEP 4 에서 본 것과 같은 <b>정상 안내</b>입니다(Claude Code가 모르는 이름이라 컨텍스트 창을 1M 토큰으로 가정). 헤더 끝의 <code>API Usage Billing</code> 은 Claude Code가 붙이는 표시일 뿐이고(요금은 Copilot 구독으로 처리됩니다), 아래의 <code>auto mode on</code> 은 Claude Code {{claude-version}} 의 기본 권한 모드입니다(STEP 7에서 설명). 나갈 때는 <code>/exit</code>.</figcaption>
+    </figure>
+  </section>
+
+  <section id="s6">
+    <h2><span class="step-no">STEP 6</span>/model 로 모델 바꾸기</h2>
+    <p class="goal">한 대화 안에서 Gemini 4 모델 4개를 번갈아 씁니다. 대화 내용은 Claude Code가 보관하고, 전환할 때 새 모델에게 다시 읽힙니다.</p>
+    <div class="diagram">
+      <svg viewBox="0 0 1120 150" role="img" aria-label="한 대화 안에서 Hydrogen, Neon, Argon, Carbon 순서로 모델을 전환하는 흐름">
+        <defs><marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10z" class="ahb"/></marker></defs>
+        <rect class="group" x="6" y="14" width="1108" height="122" rx="18" style="stroke:var(--line)"/>
+        <text class="t3" x="22" y="38">같은 대화 — 기록은 Claude Code가 보관하고, 전환할 때 새 모델의 세션에 다시 읽힙니다</text>
+        <rect class="gem" x="30" y="62" width="206" height="54" rx="12"/><text class="tg" x="133" y="95" text-anchor="middle">① Hydrogen</text>
+        <rect class="gem" x="312" y="62" width="206" height="54" rx="12"/><text class="tg" x="415" y="95" text-anchor="middle">② Neon</text>
+        <rect class="gem" x="594" y="62" width="206" height="54" rx="12"/><text class="tg" x="697" y="95" text-anchor="middle">③ Argon</text>
+        <rect class="gem" x="876" y="62" width="206" height="54" rx="12"/><text class="tg" x="979" y="95" text-anchor="middle">④ Carbon</text>
+        <path class="dash" d="M238 89 L310 89" marker-end="url(#ah2)"/><text class="t3b" x="274" y="78" text-anchor="middle">/model → s</text>
+        <path class="dash" d="M520 89 L592 89" marker-end="url(#ah2)"/><text class="t3b" x="556" y="78" text-anchor="middle">/model → s</text>
+        <path class="dash" d="M802 89 L874 89" marker-end="url(#ah2)"/><text class="t3b" x="838" y="78" text-anchor="middle">/model → s</text>
+      </svg>
+    </div>
+    <p>먼저 Hydrogen에게 정보를 하나 알려 줍니다.</p>
+    <div class="code"><span class="label">Claude Code 프롬프트</span><pre><code>내 이름은 지우야. 기억해줘. 짧게 답해줘.</code></pre></div>
+    <figure class="shot">
+      <img src="{{img:chat-hydrogen}}" alt="Hydrogen과 나눈 첫 대화">
+      <figcaption>첫 대화입니다. 이 정보를 다음 모델이 기억하는지 볼 겁니다.</figcaption>
+    </figure>
+    <h3>모델 목록 열기 → 고르기</h3>
+    <p><code>/model</code> 을 입력하고 <kbd>Enter</kbd>. Gemini 4 모델 4개가 목록에 나옵니다.</p>
+    <figure class="shot"><img src="{{img:picker}}" alt="/model 목록: Gemini 4 Argon, Carbon, Hydrogen, Neon"><figcaption><b>/model 목록</b> — <b>✔</b> 는 현재 모델입니다. “Default” 행은 Claude Code 기본 행이며 이 실습에서는 Neon(opus 별칭)을 가리킵니다.</figcaption></figure>
+      <figure class="shot"><img src="{{img:picker-select}}" alt="Neon을 선택한 /model 목록"><figcaption><kbd>↑</kbd>/<kbd>↓</kbd> 로 모델을 고른 뒤 <kbd>s</kbd> (<b>이번 세션에서만</b>).</figcaption></figure>
+    <div class="callout warn"><b class="t">Enter 가 아니라 s 를 누르세요</b>
+      <p>목록 위에는 <i>“Your pick is the default for new sessions.”</i>, 아래에는 <i>“s to use this session only · Enter to save · Esc to cancel”</i> 이라고 나옵니다. <kbd>Enter</kbd> 는 이 모델을 <b>새 세션의 기본값</b>으로 <code>~/.claude/settings.json</code> 에 저장해서, 평소의 <code>claude</code> 가 Anthropic에 없는 모델 이름을 쓰게 만듭니다. 이미 저장했다면 <code>gemini-doctor</code> 가 경고하니 그 파일에서 <code>"model"</code> 줄을 지우세요.</p></div>
+    <figure class="shot"><img src="{{img:switch-confirm}}" alt="모델 전환 확인 대화상자: 이 대화는 현재 모델용으로 캐시돼 있어 전체 기록을 다시 읽는다"><figcaption><b>대화가 있으면 한 번 더 확인</b>합니다. 새 모델이 기록 전체를 다시 읽어서 다음 응답이 느려지고 토큰을 더 씁니다. <b>1. Yes, switch</b> 에서 <kbd>Enter</kbd>.</figcaption></figure>
+      <figure class="shot"><img src="{{img:recall}}" alt="Neon으로 전환한 뒤 이전 대화에서 알려 준 이름을 기억하는 화면"><figcaption>전환한 <b>Neon이 Hydrogen과 나눈 대화를 기억</b>합니다 (이름 질문에 정확히 답).</figcaption></figure>
+    <p>같은 방법으로 Argon, Carbon 으로도 이어서 전환해 보세요.</p>
+    <div class="callout tip"><b class="t">이름을 “메모리”에서 불러올 수도 있습니다</b>
+      <p>Claude Code의 <b>자동 메모리</b>가 켜져 있으면 “내 이름은 …” 같은 정보를 메모리에 저장했다가 불러옵니다(화면에 <i>Recalled 1 memory</i> 가 보입니다). 모델이 <b>대화 기록만으로</b> 기억하는지 확인하려면 <code>CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 claude-gemini-litellm</code> 로 시작하세요. 이 가이드의 화면과 검증은 모두 이 설정으로 만들었습니다.</p></div>
+    <figure class="shot">
+      <img src="{{img:four-models}}" alt="한 대화에서 Hydrogen, Neon, Argon, Carbon 4개 모델을 모두 사용한 화면">
+      <figcaption>한 대화에서 <b>Hydrogen → Neon → Argon → Carbon</b> 순서로 모델을 바꿔 가며 썼습니다(맨 위는 화면 밖으로 스크롤됐습니다). 마지막 <b>Carbon이 처음 대화의 이름(“지우”)까지 기억</b>합니다.</figcaption>
+    </figure>
+    <h3>실제로 어떤 모델이 답했는지 확인 — 두 가지 방법</h3>
+    <p><code>/exit</code> 로 나온 뒤 <b>브리지가 기록한</b> 턴을 보거나, <b>LiteLLM이 기록한</b> 요청을 봅니다. 화면 표시와 별개로 경로를 확인하는 방법입니다.</p>
+    <div class="code"><span class="label">터미널</span><pre><code>gemini-litellm turns     <span class="c"># 브리지 기록: 요청 모델 → 실제로 응답한 모델</span>
+gemini-litellm logs      <span class="c"># LiteLLM 기록: 요청마다 한 줄</span></code></pre></div>
+    <figure class="shot">
+      <img src="{{img:turns}}" alt="gemini-litellm turns 출력: 각 턴의 요청 모델과 SDK가 응답한 모델">
+      <figcaption><b>gemini-litellm turns</b> — <code>ASKED FOR</code> 와 <code>SERVED BY</code> 가 같으면, 고른 모델이 정확히 처리한 것입니다. 모두 Gemini 4 안에 머뭅니다. 게이트웨이를 켠 뒤의 모든 요청이 기록되므로 줄이 질문 수보다 많습니다: 1~5번 줄은 STEP 4 의 <code>-p</code> 호출(Hydrogen 1번 + 4개 모델 순회), 6~9번 줄이 이 대화(Hydrogen → Neon → Argon → Carbon)입니다.</figcaption>
+    </figure>
+    <figure class="shot">
+      <img src="{{img:litellm-log}}" alt="gemini-litellm logs 출력: POST /v1/messages 요청이 200 OK 로 이어지는 LiteLLM 로그">
+      <figcaption><b>gemini-litellm logs</b> — 요청이 <b>LiteLLM을 지났다</b>는 증거입니다. <code>POST /v1/messages … 200 OK</code> 한 줄이 모델 호출 하나이고, <code>GET /v1/models</code> 는 런처가 게이트웨이의 모델 목록을 확인하는 줄입니다. 실시간으로 보려면 <code>gemini-litellm logs --follow</code>.</figcaption>
+    </figure>
+  </section>
+
+  <section id="s7">
+    <h2><span class="step-no">STEP 7</span>코딩 실습 — 실패하는 테스트 고치기</h2>
+    <p class="goal">Gemini가 테스트를 실행하고, 원인을 찾고, <b>소스만</b> 고치고, 다시 실행하는 전체 흐름(Bash · Read · Edit 도구)을 봅니다.</p>
+    <p>먼저 연습 폴더를 새로 만들고 테스트가 <b>실패하는 것</b>을 확인합니다. (숫자를 사전순으로 정렬하는 <code>median</code> 버그가 들어 있습니다.)</p>
+    <div class="code"><span class="label">터미널</span><pre><code>gemini-lab 01 &amp;&amp; cd /tmp/lab-01
+node --test 2&gt;&amp;1 | grep -E '^(not ok|ok|# (tests|pass|fail))'</code></pre></div>
+    <p><small><code>grep</code> 은 긴 테스트 출력에서 결과 줄만 걸러 보여 주는 필터입니다. 그냥 <code>node --test</code> 만 실행해도 됩니다.</small></p>
+    <figure class="shot">
+      <img src="{{img:tests-fail}}" alt="node --test 결과: 4개 중 1개 실패">
+      <figcaption>4개 중 <b>1개가 실패</b>합니다 (<code>not ok 3 - median sorts numbers by value, not as text</code>).</figcaption>
+    </figure>
+    <p>Neon으로 Claude Code를 엽니다. 이번에는 <b>권한 모드를 직접 지정</b>합니다: 파일 수정은 자동 승인하고, <code>node --test</code> 실행만 허용합니다. 그리고 아래 프롬프트를 붙여 넣습니다(한국어도 됩니다).</p>
+    <div class="code"><span class="label">터미널</span><pre><code>claude-gemini-litellm --litellm-model gemini-4-neon --permission-mode acceptEdits --allowedTools "Bash(node --test)"</code></pre></div>
+    <div class="callout tip"><b class="t">왜 권한 모드를 지정하나요?</b>
+      <p>Claude Code {{claude-version}} 의 기본 권한 모드는 <b>auto mode</b> 입니다. 이 실습처럼 로컬 브리지(<code>127.0.0.1</code>)를 거치는 세션은 새 요금 방식 대상이 아니라서, 도구를 처음 쓰면 <i>“We're changing auto mode to no longer charge for classifier requests…”</i> 안내창이 뜹니다. <kbd>Enter</kbd> 로 계속하면 지금은 그대로 동작하지만, 안내문에 따르면 <b>이후 버전에서는 이런 세션의 확인 대상 동작마다 묻거나 거부</b>합니다. 그래서 이 실습은 <code>acceptEdits</code>(파일 수정은 자동 승인)로 시작해 안내창 없이 진행합니다.</p></div>
+    <div class="code"><span class="label">Claude Code 프롬프트</span><pre><code>node --test를 실행해서 실패하는 테스트의 원인을 찾고, 테스트 파일은 수정하지 말고 소스 파일만 고쳐서 모든 테스트가 통과하도록 해줘. 마지막에 node --test를 다시 실행해서 결과를 확인하고, 결과는 세 줄 이내로 요약해줘.</code></pre></div>
+    <figure class="shot">
+      <img src="{{img:coding-working}}" alt="Claude Code가 소스를 수정하는 중: 테스트 실행, 파일 읽기 기록과 diff">
+      <figcaption><b>작업 중</b> — 테스트를 돌려 실패를 확인하고(<code>ran 1 shell command · 1 failed</code>), 파일을 읽고, <code>Update(src/stats.mjs)</code> 로 소스를 고칩니다. 바뀐 줄이 diff 로 보입니다.</figcaption>
+    </figure>
+    <figure class="shot">
+      <img src="{{img:coding-done}}" alt="Claude Code가 테스트를 고치고 원인과 수정 내용, 테스트 결과를 요약한 화면">
+      <figcaption><b>완료</b> — 테스트 실행 → 파일 읽기 → 수정(<code>Update</code>) → 재실행 순서로 작업하고, 요청한 대로 <b>원인과 수정 내용, 확인 결과</b>를 세 줄로 요약했습니다. 맨 아래 <code>… for ##s</code> 줄은 걸린 시간입니다. 문장과 시간은 실행할 때마다 조금씩 다릅니다.</figcaption>
+    </figure>
+    <p><code>/exit</code> 로 나온 뒤, 무엇이 바뀌었는지 직접 확인합니다.</p>
+    <div class="code"><span class="label">터미널</span><pre><code>git --no-pager diff
+node --test 2&gt;&amp;1 | grep -E '^(not ok|ok|# (tests|pass|fail))'</code></pre></div>
+    <figure class="shot"><img src="{{img:git-diff}}" alt="git diff: sort()에 숫자 비교 함수가 추가됨"><figcaption><b>git diff</b> — 소스(<code>src/stats.mjs</code>)만 바뀌었고 테스트 파일은 그대로입니다.</figcaption></figure>
+      <figure class="shot"><img src="{{img:tests-pass}}" alt="node --test 결과: 4개 모두 통과"><figcaption><b>4개 모두 통과</b>.</figcaption></figure>
+    <div class="callout tip"><b class="t">더 엄격하게 하고 싶다면</b>
+      <p>이 저장소의 검증은 print 모드에서 도구를 <code>Read,Edit,Bash</code> 로 제한하고 <code>node --test</code> 만 허용했습니다: <code>--restricted --permission-mode dontAsk --tools "Read,Edit,Bash" --allowedTools "Read,Edit,Bash(node --test)"</code></p></div>
+  </section>
+
+  <section id="s8">
+    <h2><span class="step-no">STEP 8</span>이미지 읽기</h2>
+    <p class="goal">Gemini 4는 이미지를 이해합니다. Claude Code의 <code>Read</code> 도구가 연 이미지를 Gemini가 판독합니다. 이미지도 LiteLLM을 그대로 통과합니다.</p>
+    <div class="code"><span class="label">터미널</span><pre><code>gemini-lab 02 &amp;&amp; cd /tmp/lab-02 &amp;&amp; ls
+claude-gemini-litellm --litellm-model gemini-4-neon -p "code.png 파일을 읽고 이미지에 적힌 숫자만 답해줘."</code></pre></div>
+    <figure class="shot small"><img src="{{lab-image}}" alt="실습 이미지: 검은 글씨 5자리 숫자" style="background:#fff"><figcaption>실습 이미지 <code>labs/02-read-an-image/code.png</code> (5자리 숫자)</figcaption></figure>
+      <figure class="shot"><img src="{{img:vision}}" alt="claude-gemini-litellm 이 이미지의 숫자를 읽은 결과"><figcaption>모델이 이미지를 열어 숫자를 답합니다. 위 이미지의 숫자와 같으면 성공입니다.</figcaption></figure>
+  </section>
+
+  <section id="s9">
+    <h2><span class="step-no">STEP 9</span>정리</h2>
+    <p class="goal">게이트웨이(LiteLLM + 브리지)는 백그라운드에서 계속 돕니다. 다 쓰고 나면 끄세요. 끌 때 Claude Code용 설정 파일(LiteLLM 키 포함)도 함께 지웁니다.</p>
+    <div class="code"><span class="label">터미널</span><pre><code>gemini-litellm status   <span class="c"># 게이트웨이 상태</span>
+gemini-litellm down     <span class="c"># 종료</span>
+gemini-litellm status</code></pre></div>
+    <figure class="shot"><img src="{{img:status-running}}" alt="gemini-litellm status: LiteLLM running, Bridge running"><figcaption>켜져 있으면 <b>LiteLLM running</b> 과 <b>Bridge running</b> 이 ✓ 로 보입니다.</figcaption></figure>
+      <figure class="shot"><img src="{{img:status-stopped}}" alt="gemini-litellm down 이후 LiteLLM stopped, Bridge stopped"><figcaption><code>gemini-litellm down</code> 뒤에는 둘 다 <b>stopped</b> 입니다.</figcaption></figure>
+    <div class="callout tip"><b class="t">연습용 폴더 지우기</b><p><code>rm -rf /tmp/lab-01 /tmp/lab-02</code></p></div>
+  </section>
+
+  <section id="effort">
+    <h2>추론 강도(effort)</h2>
+    <p class="goal"><code>--effort</code> 또는 <code>/model</code> 화면 아래의 슬라이더(←/→)로 정합니다. 4개 모델에서 실제로 적용된 값을 LiteLLM 경유 상태로 검증했습니다.</p>
+    <div class="code"><span class="label">터미널</span><pre><code>claude-gemini-litellm --litellm-model gemini-4-neon --effort high</code></pre></div>
+    <div class="tablewrap">
+      <table class="effort">
+        <thead><tr><th>모델</th><th>low 요청</th><th>high 요청</th><th>xhigh 요청</th></tr></thead>
+        <tbody>{{effort:rows}}</tbody>
+      </table>
+    </div>
+    <p><small>표의 값은 “요청 → 실제 SDK 세션에 적용된 값”입니다. SDK 런타임({{runtime-version}})은 네 모델 모두 <code>xhigh</code> 를 “지원하지 않는 추론 강도” 오류로 거부하므로, 브리지가 <code>high</code> 로 낮춰 적용합니다. 그래서 Claude Code 설정에 <code>effortLevel: "xhigh"</code> 가 있어도 요청이 실패하지 않습니다. (카탈로그에는 Hydrogen·Neon 의 옛 항목에 <code>xhigh</code> 가 남아 있지만, 이 저장소는 런타임이 검사하는 최상위 목록 <code>low · medium · high</code> 를 기준으로 판단합니다.)</small></p>
+    <div class="callout tip"><b class="t">LiteLLM이 effort를 버리지 않게 하는 설정</b>
+      <p>LiteLLM은 <code>anthropic/</code> 경로 뒤의 모델이 Gemini 4라는 것을 몰라서, 따로 알려 주지 않으면 Claude Code가 보낸 추론 설정(<code>output_config.effort</code>)을 <i>“Dropping adaptive thinking/output_config.effort”</i> 경고와 함께 버립니다. <code>examples/litellm-gemini.yaml</code> 의 모델별 <code>model_info</code>(<code>supports_adaptive_thinking</code> · <code>supports_xhigh_reasoning_effort</code>)가 그것을 막아, 위 표처럼 effort가 브리지까지 도착합니다.</p></div>
+  </section>
+
+  <section id="verify">
+    <h2>검증 결과 — 실제 호출로 확인했습니다</h2>
+    <p class="goal">아래는 <code>npm run verify:litellm</code> 의 기록입니다. 모의(mock)가 아니라 이 컴퓨터의 Claude Code가 <b>LiteLLM을 거쳐</b> 실제 Gemini 4 모델을 호출했습니다.</p>
+    <div class="stats">{{verify:summary}}</div>
+    <div class="tablewrap">{{verify:table}}</div>
+    {{verify:retries}}
+    <figure class="shot">
+      <img src="{{img:verify-report}}" alt="npm run verify:litellm:report 실행 화면: 시나리오별·모델별 통과 여부와 전체 요약">
+      <figcaption>터미널에서는 <code>npm run verify:litellm:report</code> 로 같은 결과를 볼 수 있습니다. 기록된 <code>verification/results-litellm.json</code> 을 읽을 뿐 모델을 호출하지 않습니다.</figcaption>
+    </figure>
+    <h3>검증 환경</h3>
+    {{verify:env}}
+    <h3>실행 전체에 대한 확인</h3>
+    {{verify:invariants}}
+    <details>
+      <summary>검증 방법과 한계</summary>
+      <ul class="plain">
+        <li>Claude Code는 <b>전용 설정 폴더</b>(<code>CLAUDE_CONFIG_DIR</code>)로 격리해 실행했고, 내 <code>~/.claude</code> 는 읽지도 쓰지도 않았습니다. 검증용 LiteLLM은 빈 포트에서 <b>자기만의 마스터 키</b>로 띄웠고, <code>gateway</code> 케이스는 별도의 홈 폴더에서 실제 <code>gemini-litellm</code> 명령을 돌렸습니다.</li>
+        <li>모든 검사는 Claude Code 쪽 기록과 <b>브리지 로그</b>를 교차 확인합니다: 요청한 모델(LiteLLM 별칭), SDK가 실제로 응답한 모델, 실패한 요청 여부. 브리지는 LiteLLM 뒤에 있으므로, 브리지가 본 요청은 곧 <b>LiteLLM을 통과한 요청</b>입니다.</li>
+        <li>검증에서 브리지가 집계한 토큰은 입력 {{verify:tokens-in}} / 출력 {{verify:tokens-out}} 입니다 (런처·대화형 케이스 제외). 이 호출은 GitHub Copilot 사용량을 소비합니다.</li>
+        <li>다시 돌리려면 <code>npm run verify:litellm</code> (약 15분, Copilot 사용량 소비). 호출 없이 계획만 보려면 <code>npm run verify:litellm:plan</code>.</li>
+        <li><b>이 검증이 다루지 않는 것:</b> LiteLLM의 가상 키·예산·로드밸런싱 같은 게이트웨이 기능, 원격 게이트웨이, MCP 서버, 훅·플러그인·스킬, <code>/background</code>, 컨텍스트 한도에 가까운 긴 대화, 요청 한도(429/529) 복구, Linux·Windows, IDE 확장, WebFetch·WebSearch, 장시간 무인 실행, 모델 전환 뒤의 서브에이전트 동작.</li>
+        <li>표의 시간(초)은 그날의 관찰값이며 호출마다 달라집니다. 성능 비교가 아닙니다.</li>
+      </ul>
+    </details>
+  </section>
+
+  <section id="trouble">
+    <h2>문제 해결</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>증상</th><th>원인</th><th>해결</th></tr></thead>
+        <tbody>
+          <tr><th scope="row"><code>Dependencies are missing</code></th><td>의존성 미설치</td><td>저장소 폴더에서 <code>npm ci</code></td></tr>
+          <tr><th scope="row"><code>Not signed in to GitHub Copilot</code></th><td>Copilot 로그인 없음</td><td><code>copilot login</code></td></tr>
+          <tr><th scope="row"><code>gemini-doctor</code> 에서 모델이 ✗</th><td>계정 플랜·조직 정책에서 모델이 막힘, 또는 <code>policy</code> 가 <code>disabled</code></td><td>GitHub Copilot 설정에서 해당 모델을 켜거나 관리자에게 요청</td></tr>
+          <tr><th scope="row"><code>LiteLLM is not installed</code></th><td>STEP 1의 <code>gemini-litellm setup</code> 을 아직 안 함 (또는 <code>.runtime/</code> 을 지움)</td><td><code>gemini-litellm setup</code></td></tr>
+          <tr><th scope="row"><code>Cannot reach LiteLLM at http://127.0.0.1:4000</code></th><td>게이트웨이가 꺼져 있음</td><td><code>gemini-litellm up</code> 후 <code>gemini-litellm status</code></td></tr>
+          <tr><th scope="row"><code>LiteLLM rejected the key</code></th><td><code>LITELLM_API_KEY</code> 가 이 게이트웨이의 키와 다름</td><td>환경 변수를 <code>unset LITELLM_API_KEY</code> 하면 이 노트북 게이트웨이는 <code>.runtime/litellm-master-key</code> 를 씁니다</td></tr>
+          <tr><th scope="row"><code>Port 4000 is already in use</code></th><td>다른 프로그램이 4000 번 포트를 씀</td><td><code>gemini-litellm up --port 4100</code>, Claude Code 쪽은 <code>--litellm-base-url http://127.0.0.1:4100</code></td></tr>
+          <tr><th scope="row"><code>status</code> 의 Chain 이 <code>older bridge token</code></th><td>브리지만 다시 시작돼 LiteLLM이 옛 토큰을 들고 있음</td><td><code>gemini-litellm up</code> 이 LiteLLM을 다시 시작해 맞춥니다</td></tr>
+          <tr><th scope="row"><code>LiteLLM does not serve "gemini-4-…"</code></th><td>그 별칭이 게이트웨이 설정에 없음</td><td><code>gemini-litellm status</code> 의 Models 줄에 있는 별칭을 <code>--litellm-model</code> 로 지정</td></tr>
+          <tr><th scope="row"><code>COPILOT_CLI_PATH is set</code> 경고</th><td>Copilot CLI 세션 안에서 실행해 환경 변수가 상속됨</td><td>새 터미널을 열거나 <code>unset COPILOT_CLI_PATH</code></td></tr>
+          <tr><th scope="row"><code>Claude Code default model is a Copilot model</code> 경고</th><td><code>/model</code> 에서 <kbd>Enter</kbd> 로 골라 기본값이 저장됨</td><td><code>~/.claude/settings.json</code> 에서 <code>"model"</code> 줄 삭제. 다음부터는 <kbd>s</kbd></td></tr>
+          <tr><th scope="row"><code>Claude Code doesn't recognize the model "gemini-4-…"</code> 한 줄</th><td>Claude Code가 모르는 모델 이름이라 컨텍스트 창을 1M 토큰으로 가정한다는 안내(정상). Gemini 4의 실제 창과 같음</td><td>무시해도 됩니다. 숨기려면 <code>2&gt;/dev/null</code></td></tr>
+          <tr><th scope="row">폴더 신뢰 화면에서 바로 종료</th><td>기본 선택 “No, exit” 에서 <kbd>Enter</kbd></td><td><kbd>↓</kbd> 로 “Yes, I trust this folder” 선택 후 <kbd>Enter</kbd></td></tr>
+          <tr><th scope="row">도구를 쓰자 <code>We're changing auto mode to no longer charge for classifier requests…</code> 안내창 (<code>Enter to continue · Esc to cancel</code>)</th><td>기본 권한 모드(auto mode)의 요금 방식 변경 안내. 로컬 브리지(<code>127.0.0.1</code>)를 거치는 세션은 새 방식 대상이 아님 (Claude Code {{claude-version}} 에서 확인)</td><td><kbd>Enter</kbd> 로 계속하면 지금은 정상 동작. 안내문은 이후 버전에서 이런 세션의 확인 대상 동작을 묻거나 거부한다고 하므로 <code>--permission-mode acceptEdits</code> 로 시작 (STEP 7)</td></tr>
+          <tr><th scope="row">화면에 <code>Recalled N memory</code> 가 보임</th><td>Claude Code 자동 메모리</td><td>기록만으로 확인하려면 <code>CLAUDE_CODE_DISABLE_AUTO_MEMORY=1</code></td></tr>
+          <tr><th scope="row"><code>GitHub Copilot model "…" is unavailable</code></th><td>그 계정의 카탈로그에 모델이 없음 (예: Argon 지원 중단 이후)</td><td><code>gemini-models</code> 로 가능한 모델 확인 후 다른 모델 선택</td></tr>
+          <tr><th scope="row">응답이 오래 걸림</th><td>모델·요청에 따른 지연(특히 Carbon), Copilot의 재시도 대기</td><td>Hydrogen·Neon 으로 바꾸거나 <code>--effort low</code>. 5분간 진행이 없으면 브리지가 그 턴을 실패 처리합니다</td></tr>
+          <tr><th scope="row"><code>429</code> / <code>529</code> 오류</th><td>Copilot 요청 한도·업스트림 과부하</td><td>Claude Code가 자동 재시도합니다(LiteLLM도 자체적으로 한 번 더 시도합니다). 계속되면 잠시 후 다시</td></tr>
+          <tr><th scope="row">응답이 빈 채로 끝남, 또는 <code>529 … returned an empty response</code></th><td>Gemini 4 서비스가 호출에 <b>아무것도 돌려주지 않는</b> 때가 있고, 빈도는 시간대마다 다릅니다</td><td>브리지가 런타임의 <b>빈 응답 재시도</b>(<code>STREAM_INTERRUPTION_RECOVERY</code>)를 켜 두고, 그래도 비면 <code>529</code> 로 바꿉니다. 그러면 LiteLLM과 Claude Code가 자동 재시도합니다. 계속되면 잠시 후 다시, 또는 다른 모델. 런타임 재시도를 끄려면 <code>GHCP_STREAM_RECOVERY=0</code></td></tr>
+          <tr><th scope="row"><code>/cost</code> 금액이 이상함</th><td>Claude Code는 Gemini 단가를 몰라 추정</td><td>무시하세요. 실제 사용량은 GitHub Copilot 쪽에서 확인</td></tr>
+          <tr><th scope="row">종료했는데 프로세스가 남음</th><td>게이트웨이(LiteLLM + 브리지)는 백그라운드에서 계속 돎</td><td><code>gemini-litellm down</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="limits">
+    <h2>한계와 범위</h2>
+    <ul class="plain">
+      <li><b>비공식 구성입니다.</b> Anthropic은 Claude가 아닌 모델을 게이트웨이로 연결하는 구성을, GitHub은 이 조합을 지원하지 않으며, 이 저장소의 LiteLLM 설정도 LiteLLM이 보증하는 구성이 아닙니다. 개인 실험·연구용으로 쓰세요.</li>
+      <li><b>LiteLLM은 이 노트북 안에서만 쓰는 구성</b>입니다(<code>127.0.0.1</code>). 다른 사람과 게이트웨이를 공유하려면 가상 키·네트워크 보안·로그 보관을 따로 설계해야 합니다. 이 가이드는 그 부분을 검증하지 않았습니다.</li>
+      <li><b>금액·예산 기능은 의미가 없습니다.</b> Gemini 4는 GitHub Copilot 구독으로 처리되고, LiteLLM과 Claude Code는 이 모델들의 단가를 모릅니다. <code>/cost</code> 나 LiteLLM의 지출 집계 숫자를 믿지 마세요. 실제 사용량은 GitHub Copilot 쪽에서 봅니다.</li>
+      <li>Claude Code가 보내는 <b>토큰 수 사전 계산</b>(<code>count_tokens</code>) 요청은 LiteLLM이 Anthropic에 묻지 않고 <b>자체 추정값</b>으로 답합니다. 실제 Gemini 4 토큰 수와는 다를 수 있습니다.</li>
+      <li>Claude Code의 <b>확장 사고(thinking) 블록은 표시되지 않습니다</b>. 대신 추론 강도(effort)가 전달됩니다.</li>
+      <li><code>temperature</code>·<code>top_p</code>·<code>stop_sequences</code> 같은 샘플링 제어와 <code>cache_control</code> 표시는 적용되지 않습니다.</li>
+      <li>WebSearch 처럼 Anthropic 서버에서 실행되는 기능은 쓸 수 없습니다.</li>
+      <li>모델을 바꾸면 새 모델이 <b>대화 전체를 다시 읽습니다</b> (Claude Code 확인창의 경고 그대로).</li>
+      <li>서브에이전트(Explore 등)는 <b>시작할 때 고른 모델</b>로 실행되는 것을 검증했습니다. 도중에 <code>/model</code> 로 바꾼 뒤의 서브에이전트 동작은 검증하지 않았습니다.</li>
+    </ul>
+  </section>
+
+  <section id="cheatsheet">
+    <h2>명령 요약</h2>
+    <p class="goal">한 번 따라 해 본 뒤에는 이것만 보면 됩니다.</p>
+    <div class="code"><span class="label">전체 흐름</span><pre><code>cd {{repo-name}} &amp;&amp; npm ci
+export PATH="$PWD/bin:$PATH"
+gemini-litellm setup                <span class="c"># LiteLLM 설치 (처음 한 번)</span>
+
+copilot login                       <span class="c"># 처음 한 번</span>
+gemini-doctor --litellm &amp;&amp; gemini-models   <span class="c"># 점검 · 모델 4종 확인</span>
+
+gemini-litellm up                   <span class="c"># 브리지 + LiteLLM 시작</span>
+claude-gemini-litellm --litellm-model gemini-4-neon -p "안녕하세요"   <span class="c"># 한 번 묻기</span>
+gemini-lab 01 &amp;&amp; cd /tmp/lab-01 &amp;&amp; claude-gemini-litellm           <span class="c"># 대화형 + 코딩 실습</span>
+<span class="c"># /model → ↑↓ → s   (Enter 말고 s)</span>
+
+gemini-litellm turns                <span class="c"># 실제로 응답한 모델 확인</span>
+gemini-litellm logs                 <span class="c"># LiteLLM 요청 로그</span>
+gemini-litellm down                 <span class="c"># 다 쓰면 게이트웨이 종료</span></code></pre></div>
+    <div class="tablewrap">
+    <table>
+      <thead><tr><th>명령</th><th>하는 일</th></tr></thead>
+      <tbody>
+        <tr><td><code>gemini-litellm setup</code></td><td>LiteLLM을 <code>.runtime/</code> 에 설치(버전·해시 고정)하고 마스터 키를 만듭니다. 다시 실행해도 안전</td></tr>
+        <tr><td><code>gemini-litellm up</code> · <code>down</code></td><td>브리지와 LiteLLM 시작 · 종료 (<code>--port</code> 로 LiteLLM 포트 변경)</td></tr>
+        <tr><td><code>gemini-litellm status</code> · <code>turns</code> · <code>logs</code></td><td>상태(<code>--json</code> 지원) · 브리지가 기록한 턴별 요청/응답 모델 · LiteLLM 로그(<code>--follow</code>, <code>--all</code>)</td></tr>
+        <tr><td><code>claude-gemini-litellm</code></td><td>게이트웨이를 거쳐 Gemini 4로 Claude Code 실행 (<code>--litellm-model</code>, <code>--litellm-base-url</code> 외에 <code>--effort</code>, <code>-p</code> 등 Claude Code 옵션을 그대로 사용)</td></tr>
+        <tr><td><code>gemini-models</code> · <code>gemini-doctor</code></td><td>모델 목록 · 환경 점검 (<code>--json</code> 지원, <code>gemini-doctor --litellm</code> 은 LiteLLM 항목 포함)</td></tr>
+        <tr><td><code>gemini-lab 01|02</code></td><td>연습 폴더를 <code>/tmp/lab-01</code>, <code>/tmp/lab-02</code> 로 복사하고 git 기록 시작</td></tr>
+        <tr><td><code>npm test</code></td><td>오프라인 단위 테스트 (모델 호출 없음)</td></tr>
+        <tr><td><code>npm run verify:litellm</code></td><td>LiteLLM 경유 실제 호출 검증 (약 15분)</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  </main>
+</div>
+
+<footer>
+  <div class="wrap">
+    <p>이 가이드의 화면은 모두 이 컴퓨터에서 실제로 실행한 세션을 기록한 것입니다(계정명·LiteLLM 키·홈 경로는 가렸습니다). 영상은 기다리는 구간을 배속으로 줄인 편집본이며 검증 근거가 아닙니다 — 검증 근거는 <code>verification/results-litellm.json</code> 입니다.</p>
+    <p>Claude Code {{claude-version}} · LiteLLM {{litellm-version}} · {{sdk-package}} {{sdk-version}} (런타임 {{runtime-version}}) · 검증일 {{verify-date}} · 비공식 통합</p>
+  </div>
+</footer>
+
+<dialog id="zoom"><img alt=""></dialog>
+
+<script>
+(function () {
+  // Copy buttons on every code block.
+  document.querySelectorAll('.code').forEach(function (block) {
+    var button = document.createElement('button');
+    button.type = 'button'; button.className = 'copy'; button.textContent = '복사';
+    button.addEventListener('click', function () {
+      var text = block.querySelector('code').innerText.replace(/[ \t]+#[ \t].*$/gm, '').trim();
+      var done = function () { button.textContent = '복사됨 ✓'; setTimeout(function () { button.textContent = '복사'; }, 1600); };
+      function fallback() {
+        var area = document.createElement('textarea'); area.value = text; area.style.position = 'fixed'; area.style.opacity = '0';
+        document.body.appendChild(area); area.select();
+        try { document.execCommand('copy'); done(); } catch (error) { button.textContent = '직접 선택해 복사'; }
+        document.body.removeChild(area);
+      }
+      if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(done, fallback); } else { fallback(); }
+    });
+    block.appendChild(button);
+  });
+
+  // Click a screen capture to enlarge it.
+  var zoom = document.getElementById('zoom'); var zoomImage = zoom.querySelector('img');
+  document.querySelectorAll('figure.shot img').forEach(function (image) {
+    image.addEventListener('click', function () { zoomImage.src = image.src; zoomImage.alt = image.alt; if (zoom.showModal) { zoom.showModal(); } });
+  });
+  zoom.addEventListener('click', function () { zoom.close(); });
+
+  // The table of contents follows the section in view.
+  var links = {}; document.querySelectorAll('.toc a').forEach(function (a) { links[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window) {
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting && links[entry.target.id]) {
+          Object.keys(links).forEach(function (id) { links[id].classList.remove('active'); });
+          links[entry.target.id].classList.add('active');
+        }
+      });
+    }, { rootMargin: '-15% 0px -70% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (section) { observer.observe(section); });
+  }
+
+  // Video chapters: one button per title card in the video.
+  var chapters = {{chapters}};
+  var video = document.getElementById('demo'); var bar = document.getElementById('chapters');
+  chapters.forEach(function (chapter) {
+    var button = document.createElement('button'); button.type = 'button';
+    button.textContent = (chapter.step ? chapter.step + ' · ' : '') + chapter.title;
+    button.addEventListener('click', function () { video.currentTime = chapter.start; video.play(); });
+    bar.appendChild(button);
+  });
+  video.addEventListener('timeupdate', function () {
+    var current = -1; chapters.forEach(function (chapter, index) { if (video.currentTime >= chapter.start) { current = index; } });
+    Array.prototype.forEach.call(bar.children, function (button, index) { button.classList.toggle('on', index === current); });
+  });
+})();
+</script>
+</body>
+</html>

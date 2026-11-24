@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Copies a lab into a fresh scratch folder and starts a git history there, so you can
+# see exactly what Claude Code changed with `git diff`.
+#
+#   labs/start 01        ->  /tmp/lab-01   (from labs/01-fix-the-bug)
+#   labs/start 02        ->  /tmp/lab-02   (from labs/02-read-an-image)
+# With the repository's bin/ on PATH the same thing is `gemini-lab 01`, from any folder.
+set -euo pipefail
+
+ROOT_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+number="${1:-}"
+if [[ -z "$number" ]]; then
+  echo "Usage: labs/start <lab number>   (for example: labs/start 01)" >&2
+  exit 2
+fi
+
+source_dir="$(find "$ROOT_DIR/labs" -mindepth 1 -maxdepth 1 -type d -name "${number}-*" | head -n 1)"
+if [[ -z "$source_dir" ]]; then
+  echo "No lab starts with \"$number\". Labs:" >&2
+  find "$ROOT_DIR/labs" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort >&2
+  exit 2
+fi
+
+target="${LAB_PARENT:-/tmp}/lab-$number"
+rm -rf "$target"
+cp -R "$source_dir" "$target"
+# A local identity keeps this working on a machine where git has none configured.
+git -C "$target" init -q
+git -C "$target" add -A
+git -C "$target" -c user.name=lab -c user.email=lab@example.com commit -q -m "start of lab $number"
+echo "Lab $number is ready in $target"

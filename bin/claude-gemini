@@ -1,0 +1,318 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Resolve a symlinked launcher (npm link, ~/.local/bin) to its checkout.
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+while [[ -L "$SCRIPT_PATH" ]]; do
+  SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_PATH")" && pwd)"
+  SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
+  [[ "$SCRIPT_PATH" == /* ]] || SCRIPT_PATH="$SCRIPT_DIR/$SCRIPT_PATH"
+done
+ROOT_DIR="$(cd -P "$(dirname "$SCRIPT_PATH")/.." && pwd)"
+source "$ROOT_DIR/bin/resolve-claude.sh"
+
+# Command-line settings bypass Claude Code's rollout-based renderer selection.
+# Restore the fullscreen renderer used by the unwrapped Claude Code command.
+if [[ -z "${CLAUDE_CODE_NO_FLICKER+x}" ]]; then
+  export CLAUDE_CODE_NO_FLICKER=1
+fi
+
+GHCP_MODEL_VALUE="${GHCP_MODEL:-gemini-4-hydrogen}"
+BRIDGE_PORT="${GHCP_BRIDGE_PORT:-}"
+CLAUDE_ARGS=()
+PERSISTENT_BRIDGE=0
+
+usage() {
+  cat <<'EOF'
+Usage: claude-gemini [bridge options] [--] [claude options and prompt]
+
+Runs Claude Code on the Gemini 4 models of GitHub Copilot.
+
+Bridge options:
+  --ghcp-model MODEL   GitHub Copilot model ID (default: gemini-4-hydrogen)
+                       One of gemini-4-argon, gemini-4-carbon,
+                       gemini-4-hydrogen, gemini-4-neon
+  --bridge-port PORT   Fixed loopback port (default: choose a free port)
+  --background, --bg   Start the session in the background (persistent bridge)
+  -h, --help           Show this help
+
+Use --ghcp-model instead of Claude Code's --model flag. The launcher maps the
+GitHub Copilot model to a Claude Code-compatible frontend model name.
+
+Interactive sessions, --background, and the agents view share one persistent
+loopback bridge, so /background can hand a session to Claude Code's daemon.
+Print mode (-p) gets a private bridge that stops when the launcher exits.
+Inspect or stop the persistent bridge with claude-gemini-status/claude-gemini-stop.
+EOF
+}
+
+while (($#)); do
+  case "$1" in
+    --ghcp-model)
+      [[ $# -ge 2 ]] || { echo "--ghcp-model requires a value" >&2; exit 2; }
+      GHCP_MODEL_VALUE="$2"
+      shift 2
+      ;;
+    --ghcp-model=*)
+      GHCP_MODEL_VALUE="${1#*=}"
+      shift
+      ;;
+    --bridge-port)
+      [[ $# -ge 2 ]] || { echo "--bridge-port requires a value" >&2; exit 2; }
+      BRIDGE_PORT="$2"
+      shift 2
+      ;;
+    --bridge-port=*)
+      BRIDGE_PORT="${1#*=}"
+      shift
+      ;;
+    --model|--model=*)
+      echo "Use --ghcp-model; passing Claude Code --model would make the selected backend ambiguous." >&2
+      exit 2
+      ;;
+    --settings|--settings=*)
+      echo "Custom --settings is not supported because it can disable GHCP routing." >&2
+      exit 2
+      ;;
+    --background|--bg)
+      PERSISTENT_BRIDGE=1
+      CLAUDE_ARGS+=("$1")
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      for argument in "$@"; do
+        case "$argument" in
+          --model|--model=*|--settings|--settings=*)
+            echo "Do not pass --model or --settings through --; use GHCP launcher options." >&2
+            exit 2
+            ;;
+          --background|--bg)
+            PERSISTENT_BRIDGE=1
+            ;;
+        esac
+      done
+      CLAUDE_ARGS+=("$@")
+      break
+      ;;
+    *)
+      CLAUDE_ARGS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [[ "${CLAUDE_ARGS[0]:-}" == "agents" ]]; then
+  PERSISTENT_BRIDGE=1
+fi
+
+# Only print mode runs start to finish inside this process. Any interactive
+# session can be handed to Claude Code's own daemon with /background, and the
+# job it leaves there keeps calling the bridge -- and is respawned from
+# --settings -- after this launcher has exited. On the ephemeral bridge that
+# job lost both: cleanup stopped the bridge under an in-flight request (the job
+# ended "API Error: 499 The client closed the request.") and deleted the
+# settings file its respawn flags name.
+PRINT_MODE=0
+for argument in ${CLAUDE_ARGS[@]+"${CLAUDE_ARGS[@]}"}; do
+  case "$argument" in
+    -p|--print) PRINT_MODE=1 ;;
+  esac
+done
+if ((PRINT_MODE == 0)); then
+  PERSISTENT_BRIDGE=1
+fi
+
+for command in node copilot curl; do
+  command -v "$command" >/dev/null 2>&1 || {
+    echo "Required command not found: $command" >&2
+    exit 1
+  }
+done
+
+CLAUDE_BIN="$(resolve_claude_code_bin "$ROOT_DIR")"
+
+if [[ ! -d "$ROOT_DIR/node_modules/@microsoft/copilot-sdk" ]]; then
+  echo "Dependencies are missing. Run: npm install --prefix \"$ROOT_DIR\"" >&2
+  exit 1
+fi
+
+if [[ -z "$BRIDGE_PORT" ]] && ((PERSISTENT_BRIDGE == 0)); then
+  BRIDGE_PORT="$(
+    node -e 'const net=require("node:net");const s=net.createServer();s.listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close();});'
+  )"
+fi
+
+FRONTEND_MODEL="$(node "$ROOT_DIR/src/model-cli.mjs" frontend "$GHCP_MODEL_VALUE")"
+RUNTIME_DIR="$(mktemp -d "${TMPDIR:-/tmp}/claude-gemini.XXXXXX")"
+BRIDGE_LOG="$RUNTIME_DIR/bridge.log"
+# Assigned per mode below: the ephemeral bridge owns a file under RUNTIME_DIR,
+# the persistent bridge hands one out of the daemon directory instead.
+SETTINGS_FILE=""
+BRIDGE_PID=""
+BRIDGE_TOKEN=""
+LEASE_FILE=""
+
+cleanup() {
+  if [[ -n "$BRIDGE_PID" ]] && kill -0 "$BRIDGE_PID" 2>/dev/null; then
+    kill "$BRIDGE_PID" 2>/dev/null || true
+    # The bridge's shutdown awaits the SDK's client.stop(), whose session.detach
+    # has no timeout, so a wedged Copilot runtime would hold an unbounded wait
+    # here long after Claude Code has finished.
+    STOP_DEADLINE=$((SECONDS + 30))
+    while kill -0 "$BRIDGE_PID" 2>/dev/null && ((SECONDS < STOP_DEADLINE)); do
+      sleep 0.25
+    done
+    if kill -0 "$BRIDGE_PID" 2>/dev/null; then
+      kill -KILL "$BRIDGE_PID" 2>/dev/null || true
+    fi
+    wait "$BRIDGE_PID" 2>/dev/null || true
+  fi
+  # In persistent-bridge mode the settings file must outlive this process.
+  # Claude Code hands a backgrounded session to its own daemon, which respawns
+  # the worker with --settings <path> long after this launcher has returned;
+  # deleting it here killed every such session with "Settings file not found".
+  # Its lifetime belongs to the bridge daemon, and claude-gemini-stop ends it.
+  if ((PERSISTENT_BRIDGE == 0)) && [[ -n "$SETTINGS_FILE" ]]; then
+    rm -f "$SETTINGS_FILE"
+  fi
+  # The lease only holds a retired bridge open for this launcher's own session;
+  # a job it handed to Claude Code's daemon is covered by the idle window.
+  if [[ -n "$LEASE_FILE" ]]; then
+    rm -f "$LEASE_FILE"
+  fi
+  rm -rf "$RUNTIME_DIR"
+}
+trap cleanup EXIT INT TERM
+
+if ((PERSISTENT_BRIDGE)); then
+  DAEMON_JSON="$(
+    node "$ROOT_DIR/src/bridge-daemon.mjs" \
+      ensure "$GHCP_MODEL_VALUE" "$BRIDGE_PORT"
+  )"
+  BRIDGE_PORT="$(
+    printf '%s' "$DAEMON_JSON" |
+      node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>console.log(JSON.parse(d).port))'
+  )"
+  BRIDGE_TOKEN="$(
+    printf '%s' "$DAEMON_JSON" |
+      node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>console.log(JSON.parse(d).token))'
+  )"
+  SETTINGS_FILE="$(
+    printf '%s' "$DAEMON_JSON" |
+      node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>console.log(JSON.parse(d).settingsPath))'
+  )"
+  # The daemon writes its own log; RUNTIME_DIR's copy is never created, and the
+  # error paths below would `sed` a file that does not exist.
+  BRIDGE_LOG="$(
+    printf '%s' "$DAEMON_JSON" |
+      node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>console.log(JSON.parse(d).logPath))'
+  )"
+  # Keeps this bridge serving the session below if a later launch replaces it
+  # (src/retirement.mjs). The PID is this shell's: it outlives Claude Code.
+  LEASE_FILE="$(
+    printf '%s' "$DAEMON_JSON" |
+      node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>console.log(JSON.parse(d).leasePath))'
+  )"
+  (umask 077 && printf '%s\n' "$$" >"$LEASE_FILE")
+else
+  SETTINGS_FILE="$RUNTIME_DIR/settings.json"
+  BRIDGE_TOKEN="$(
+    node -e 'console.log(require("node:crypto").randomBytes(24).toString("hex"))'
+  )"
+  BRIDGE_API_KEY="$BRIDGE_TOKEN" \
+  GHCP_MODEL="$GHCP_MODEL_VALUE" \
+  HOST=127.0.0.1 \
+  PORT="$BRIDGE_PORT" \
+  node "$ROOT_DIR/src/server.mjs" >"$BRIDGE_LOG" 2>&1 &
+  BRIDGE_PID=$!
+
+  # Startup uses a wall-clock deadline, with each probe bounded so a silent
+  # port cannot stall the loop. The 60s deadline plus one overshooting iteration
+  # (2s probe + 0.25s sleep) and two 5s confirmation probes below give a
+  # 72.25s worst case. test/launcher.test.mjs checks this sum against the code.
+  # Callers must leave additional time for the Claude turn after startup.
+  # A dead PID is caught on the next iteration.
+  HEALTH_DEADLINE=$((SECONDS + 60))
+  while ((SECONDS < HEALTH_DEADLINE)); do
+    if curl --silent --fail --max-time 2 "http://127.0.0.1:$BRIDGE_PORT/health" >/dev/null 2>&1; then
+      break
+    fi
+    if ! kill -0 "$BRIDGE_PID" 2>/dev/null; then
+      echo "The GHCP bridge exited during startup:" >&2
+      sed -n '1,120p' "$BRIDGE_LOG" >&2
+      exit 1
+    fi
+    sleep 0.25
+  done
+fi
+
+# Capped for the same reason as the loop probe: an uncapped curl against a port
+# that is bound but silent would spend minutes here, past every caller's budget.
+# The persistent log is shared and only ever appended to, so its end, not its
+# head, is where this failure is.
+curl --silent --fail --max-time 5 "http://127.0.0.1:$BRIDGE_PORT/health" >/dev/null || {
+  echo "Timed out waiting for the GHCP bridge." >&2
+  tail -n 120 "$BRIDGE_LOG" >&2
+  exit 1
+}
+
+# Capped like both probes above, and for a sharper reason: this one is a fetch,
+# so an AbortSignal is the only thing that bounds it. Undici's default header
+# timeout runs to minutes, and against a port that is bound but silent an
+# unsignalled fetch outlives the whole ceiling above -- measured still pending
+# at 30s against a listener that accepts the connection and never writes, while
+# the capped curl beside it gave up at 2.04s. 5s matches the health probe above;
+# src/bridge-daemon.mjs caps this same endpoint at 2s, and once /health answers
+# this route is an in-memory read of manager.listModels() with no upstream
+# round-trip, so 5s is slack rather than a budget.
+#
+# The token goes through the environment, never argv: every local user can
+# read a process's arguments, and the persistent bridge's token lives for as
+# long as that bridge does.
+if ! GHCP_BRIDGE_TOKEN="$BRIDGE_TOKEN" node -e '
+  const [url, expected] = process.argv.slice(1);
+  fetch(url, {
+    headers: {"x-api-key": process.env.GHCP_BRIDGE_TOKEN},
+    signal: AbortSignal.timeout(5_000),
+  })
+    .then((response) => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    })
+    .then((body) => {
+      if (!body.data.some((model) =>
+        model.id === expected || model.backend_id === expected
+      )) process.exit(1);
+    })
+    .catch((error) => {
+      console.error(error.message);
+      process.exit(2);
+    });
+' "http://127.0.0.1:$BRIDGE_PORT/v1/models?all=true" "$GHCP_MODEL_VALUE"; then
+  echo "GitHub Copilot model is unavailable: $GHCP_MODEL_VALUE" >&2
+  echo "Run \"$ROOT_DIR/bin/gemini-models\" to list the Gemini 4 models your account can use." >&2
+  exit 1
+fi
+
+GHCP_BRIDGE_TOKEN="$BRIDGE_TOKEN" node "$ROOT_DIR/src/write-launch-settings.mjs" \
+  "$SETTINGS_FILE" \
+  "http://127.0.0.1:$BRIDGE_PORT" \
+  "$FRONTEND_MODEL"
+
+CLAUDE_COMMAND=(
+  "$CLAUDE_BIN"
+  --settings "$SETTINGS_FILE"
+  --model "$FRONTEND_MODEL"
+)
+if ((${#CLAUDE_ARGS[@]})); then
+  CLAUDE_COMMAND+=("${CLAUDE_ARGS[@]}")
+fi
+
+STATUS=0
+"${CLAUDE_COMMAND[@]}" || STATUS=$?
+exit "$STATUS"

@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Resolve a symlinked launcher (npm link, ~/.local/bin) to its checkout.
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+while [[ -L "$SCRIPT_PATH" ]]; do
+  SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_PATH")" && pwd)"
+  SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
+  [[ "$SCRIPT_PATH" == /* ]] || SCRIPT_PATH="$SCRIPT_DIR/$SCRIPT_PATH"
+done
+ROOT_DIR="$(cd -P "$(dirname "$SCRIPT_PATH")/.." && pwd)"
+source "$ROOT_DIR/bin/resolve-claude.sh"
+
+# Command-line settings bypass Claude Code's rollout-based renderer selection.
+# Restore the fullscreen renderer used by the unwrapped Claude Code command.
+if [[ -z "${CLAUDE_CODE_NO_FLICKER+x}" ]]; then
+  export CLAUDE_CODE_NO_FLICKER=1
+fi
+
+RUNTIME_HOME="${GEMINI_LITELLM_HOME:-$ROOT_DIR/.runtime}"
+LITELLM_BASE_URL_VALUE="${LITELLM_BASE_URL:-http://127.0.0.1:${LITELLM_PORT:-4000}}"
+LITELLM_MODEL_VALUE="${LITELLM_MODEL:-gemini-4-hydrogen}"
+CLAUDE_ARGS=()
+
+usage() {
+  cat <<'EOF'
+Usage: claude-gemini-litellm [gateway options] [--] [claude options and prompt]
+
+Runs Claude Code on the Gemini 4 models through the LiteLLM gateway that
+`gemini-litellm up` starts on this machine.
+
+Gateway options:
+  --litellm-model MODEL   LiteLLM model alias (default: gemini-4-hydrogen)
+                          One of gemini-4-argon, gemini-4-carbon,
+                          gemini-4-hydrogen, gemini-4-neon
+  --litellm-base-url URL  LiteLLM root URL, no /v1 (default: http://127.0.0.1:4000,
+                          or LITELLM_BASE_URL)
+  -h, --help              Show this help
+
+The key is LITELLM_API_KEY. Against this machine's gateway it defaults to the
+master key in .runtime/litellm-master-key. The launcher writes Claude Code's
+settings, key included, to a mode-0600 file: a temporary one in print mode (-p),
+which is deleted on exit, and otherwise one under .runtime/settings/, because
+/background restarts a job from it later. `gemini-litellm down` deletes those.
+
+Use --litellm-model instead of Claude Code's --model flag.
+EOF
+}
+
+while (($#)); do
+  case "$1" in
+    --litellm-base-url)
+      [[ $# -ge 2 ]] || { echo "--litellm-base-url requires a value" >&2; exit 2; }
+      LITELLM_BASE_URL_VALUE="$2"
+      shift 2
+      ;;
+    --litellm-base-url=*)
+      LITELLM_BASE_URL_VALUE="${1#*=}"
+      shift
+      ;;
+    --litellm-model)
+      [[ $# -ge 2 ]] || { echo "--litellm-model requires a value" >&2; exit 2; }
+      LITELLM_MODEL_VALUE="$2"
+      shift 2
+      ;;
+    --litellm-model=*)
+      LITELLM_MODEL_VALUE="${1#*=}"
+      shift
+      ;;
+    --model|--model=*)
+      echo "Use --litellm-model so the gateway and Claude Code model stay aligned." >&2
+      exit 2
+      ;;
+    --settings|--settings=*)
+      echo "Custom --settings is not supported because it can disable LiteLLM routing." >&2
+      exit 2
+      ;;
+    --ghcp-model|--ghcp-model=*|--bridge-port|--bridge-port=*)
+      echo "$1 belongs to the direct launcher (claude-gemini); this one takes --litellm-model." >&2
+      exit 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      for argument in "$@"; do
+        case "$argument" in
+          --model|--model=*|--settings|--settings=*)
+            echo "Do not pass --model or --settings through --; use the launcher options." >&2
+            exit 2
+            ;;
+        esac
+      done
+      CLAUDE_ARGS+=("$@")
+      break
+      ;;
+    *)
+      CLAUDE_ARGS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+command -v node >/dev/null 2>&1 || {
+  echo "Required command not found: node" >&2
+  exit 1
+}
+
+# This machine's gateway needs no setup of the key: it is the one `gemini-litellm
+# setup` created. Any other gateway needs its own key.
+if [[ -z "${LITELLM_API_KEY:-}" ]]; then
+  case "$LITELLM_BASE_URL_VALUE" in
+    http://127.0.0.1:*|http://localhost:*)
+      if [[ -r "$RUNTIME_HOME/litellm-master-key" ]]; then
+        LITELLM_API_KEY="$(tr -d '\n' <"$RUNTIME_HOME/litellm-master-key")"
+      fi
+      ;;
+  esac
+fi
+[[ -n "${LITELLM_API_KEY:-}" ]] || {
+  echo "LITELLM_API_KEY is required. Set it, or run: gemini-litellm setup" >&2
+  exit 1
+}
+export LITELLM_API_KEY
+
+CLAUDE_BIN="$(resolve_claude_code_bin "$ROOT_DIR")"
+
+# Only print mode runs start to finish inside this process. Claude Code's daemon
+# respawns a /background or --background job with --settings <path> after this
+# launcher has exited, so that file has to outlive it.
+KEEP_SETTINGS=1
+BACKGROUND=0
+for argument in ${CLAUDE_ARGS[@]+"${CLAUDE_ARGS[@]}"}; do
+  case "$argument" in
+    -p|--print) KEEP_SETTINGS=0 ;;
+    --background|--bg) BACKGROUND=1 ;;
+  esac
+done
+if ((BACKGROUND)); then
+  KEEP_SETTINGS=1
+fi
+
+if ((KEEP_SETTINGS == 0)); then
+  SETTINGS_DIR="$(mktemp -d "${TMPDIR:-/tmp}/claude-gemini-litellm.XXXXXX")"
+  SETTINGS_FILE="$SETTINGS_DIR/settings.json"
+  cleanup() {
+    rm -f "$SETTINGS_FILE"
+    rmdir "$SETTINGS_DIR" 2>/dev/null || true
+  }
+  trap cleanup EXIT INT TERM
+else
+  SETTINGS_DIR="$RUNTIME_HOME/settings"
+  (umask 077 && mkdir -p "$SETTINGS_DIR")
+  chmod 700 "$SETTINGS_DIR"
+  SETTINGS_FILE="$SETTINGS_DIR/$(
+    node -e 'console.log(require("node:crypto").randomBytes(12).toString("hex"))'
+  ).json"
+fi
+
+node "$ROOT_DIR/src/write-litellm-settings.mjs" \
+  "$SETTINGS_FILE" \
+  "$LITELLM_BASE_URL_VALUE" \
+  "$LITELLM_MODEL_VALUE"
+
+CLAUDE_COMMAND=(
+  "$CLAUDE_BIN"
+  --settings "$SETTINGS_FILE"
+  --model "$LITELLM_MODEL_VALUE"
+)
+if ((${#CLAUDE_ARGS[@]})); then
+  CLAUDE_COMMAND+=("${CLAUDE_ARGS[@]}")
+fi
+
+STATUS=0
+"${CLAUDE_COMMAND[@]}" || STATUS=$?
+exit "$STATUS"

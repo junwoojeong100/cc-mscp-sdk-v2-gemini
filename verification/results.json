@@ -1,0 +1,2209 @@
+{
+  "schema": 1,
+  "track": "direct",
+  "startedAt": "2026-11-24T16:46:15.258Z",
+  "finishedAt": "2026-11-24T17:00:30.025Z",
+  "environment": {
+    "claudeCode": "2.1.331",
+    "node": "v22.16.0",
+    "copilotSdkPackage": "@microsoft/copilot-sdk",
+    "copilotSdk": "2.0.0",
+    "copilotRuntime": "1.0.113",
+    "platform": "darwin arm64",
+    "copilotAuth": "signed in with a user account (login not recorded)",
+    "timeoutScale": 1,
+    "catalog": [
+      {
+        "id": "gemini-4-argon",
+        "name": "Gemini 4 Argon",
+        "policy": "enabled",
+        "contextWindow": 1048576,
+        "maxPrompt": 983040,
+        "maxOutput": 65536,
+        "vision": true,
+        "efforts": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "notes": [
+          "Gemini 4 Argon has a planned deprecation date of 2026-12-14."
+        ]
+      },
+      {
+        "id": "gemini-4-carbon",
+        "name": "Gemini 4 Carbon",
+        "policy": null,
+        "contextWindow": 1000000,
+        "maxPrompt": 936000,
+        "maxOutput": 64000,
+        "vision": true,
+        "efforts": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "notes": []
+      },
+      {
+        "id": "gemini-4-hydrogen",
+        "name": "Gemini 4 Hydrogen",
+        "policy": null,
+        "contextWindow": 1048576,
+        "maxPrompt": 983040,
+        "maxOutput": 65536,
+        "vision": true,
+        "efforts": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "notes": []
+      },
+      {
+        "id": "gemini-4-neon",
+        "name": "Gemini 4 Neon",
+        "policy": null,
+        "contextWindow": 1048576,
+        "maxPrompt": 983040,
+        "maxOutput": 65536,
+        "vision": true,
+        "efforts": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "notes": []
+      }
+    ]
+  },
+  "models": [
+    "gemini-4-argon",
+    "gemini-4-carbon",
+    "gemini-4-hydrogen",
+    "gemini-4-neon"
+  ],
+  "cases": [
+    {
+      "scenario": "answer",
+      "model": "gemini-4-argon",
+      "ok": true,
+      "seconds": 6.2,
+      "checks": [
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "exact Korean answer",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "Claude Code selected the Gemini model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the runtime granted the long-context budget the catalog advertises",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "seconds": 6.2,
+        "turns": 1,
+        "inputTokens": 1122,
+        "outputTokens": 35,
+        "contextBudget": {
+          "tier": "long_context",
+          "tokenLimit": 983040
+        }
+      }
+    },
+    {
+      "scenario": "answer",
+      "model": "gemini-4-carbon",
+      "ok": true,
+      "seconds": 5.4,
+      "checks": [
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "exact Korean answer",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "Claude Code selected the Gemini model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the runtime granted the long-context budget the catalog advertises",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "seconds": 5.4,
+        "turns": 1,
+        "inputTokens": 1123,
+        "outputTokens": 73,
+        "contextBudget": {
+          "tier": "long_context",
+          "tokenLimit": 936000
+        }
+      }
+    },
+    {
+      "scenario": "answer",
+      "model": "gemini-4-hydrogen",
+      "ok": true,
+      "seconds": 2.3,
+      "checks": [
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "exact Korean answer",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "Claude Code selected the Gemini model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the runtime granted the long-context budget the catalog advertises",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "seconds": 2.3,
+        "turns": 1,
+        "inputTokens": 1122,
+        "outputTokens": 58,
+        "contextBudget": {
+          "tier": "long_context",
+          "tokenLimit": 983040
+        }
+      }
+    },
+    {
+      "scenario": "answer",
+      "model": "gemini-4-neon",
+      "ok": true,
+      "seconds": 3.6,
+      "checks": [
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "exact Korean answer",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "Claude Code selected the Gemini model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the runtime granted the long-context budget the catalog advertises",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "seconds": 3.6,
+        "turns": 1,
+        "inputTokens": 1126,
+        "outputTokens": 56,
+        "contextBudget": {
+          "tier": "long_context",
+          "tokenLimit": 983040
+        }
+      }
+    },
+    {
+      "scenario": "effort",
+      "model": "gemini-4-argon",
+      "ok": true,
+      "seconds": 16.7,
+      "checks": [
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort low reached the bridge",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort low ran as low",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort low answered",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort high reached the bridge",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort high ran as high",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort high answered",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort xhigh reached the bridge",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort xhigh ran as high",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort xhigh answered",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "low": {
+          "applied": "low",
+          "sdk": "low",
+          "contextTier": "long_context"
+        },
+        "high": {
+          "applied": "high",
+          "sdk": "high",
+          "contextTier": "long_context"
+        },
+        "xhigh": {
+          "applied": "high",
+          "sdk": "high",
+          "contextTier": "long_context"
+        }
+      }
+    },
+    {
+      "scenario": "effort",
+      "model": "gemini-4-carbon",
+      "ok": true,
+      "seconds": 34.2,
+      "checks": [
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort low reached the bridge",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort low ran as low",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort low answered",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort high reached the bridge",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort high ran as high",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort high answered",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort xhigh reached the bridge",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort xhigh ran as high",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort xhigh answered",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "low": {
+          "applied": "low",
+          "sdk": "low",
+          "contextTier": "long_context"
+        },
+        "high": {
+          "applied": "high",
+          "sdk": "high",
+          "contextTier": "long_context"
+        },
+        "xhigh": {
+          "applied": "high",
+          "sdk": "high",
+          "contextTier": "long_context"
+        }
+      }
+    },
+    {
+      "scenario": "effort",
+      "model": "gemini-4-hydrogen",
+      "ok": true,
+      "seconds": 6.8,
+      "checks": [
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort low reached the bridge",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort low ran as low",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort low answered",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort high reached the bridge",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort high ran as high",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort high answered",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort xhigh reached the bridge",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort xhigh ran as high",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort xhigh answered",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "low": {
+          "applied": "low",
+          "sdk": "low",
+          "contextTier": "long_context"
+        },
+        "high": {
+          "applied": "high",
+          "sdk": "high",
+          "contextTier": "long_context"
+        },
+        "xhigh": {
+          "applied": "high",
+          "sdk": "high",
+          "contextTier": "long_context"
+        }
+      }
+    },
+    {
+      "scenario": "effort",
+      "model": "gemini-4-neon",
+      "ok": true,
+      "seconds": 10.2,
+      "checks": [
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort low reached the bridge",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort low ran as low",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort low answered",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort high reached the bridge",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort high ran as high",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort high answered",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort xhigh reached the bridge",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort xhigh ran as high",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "--effort xhigh answered",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "low": {
+          "applied": "low",
+          "sdk": "low",
+          "contextTier": "long_context"
+        },
+        "high": {
+          "applied": "high",
+          "sdk": "high",
+          "contextTier": "long_context"
+        },
+        "xhigh": {
+          "applied": "high",
+          "sdk": "high",
+          "contextTier": "long_context"
+        }
+      }
+    },
+    {
+      "scenario": "coding",
+      "model": "gemini-4-argon",
+      "ok": true,
+      "seconds": 40.9,
+      "checks": [
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "ran the tests before editing anything",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "that first run showed the failing test",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "edited only src/stats.mjs",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "re-ran the tests after the last edit and all 4 passed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "test file and package.json are unchanged",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the source file changed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "independent `node --test` passes 4 of 4",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "seconds": 40.8,
+        "tools": [
+          "Bash",
+          "Read",
+          "Read",
+          "Edit",
+          "Bash"
+        ],
+        "fix": ".sort((a, b)",
+        "turns": 6,
+        "inputTokens": 24865,
+        "outputTokens": 762
+      }
+    },
+    {
+      "scenario": "coding",
+      "model": "gemini-4-carbon",
+      "ok": true,
+      "seconds": 154.7,
+      "checks": [
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "ran the tests before editing anything",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "that first run showed the failing test",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "edited only src/stats.mjs",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "re-ran the tests after the last edit and all 4 passed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "test file and package.json are unchanged",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the source file changed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "independent `node --test` passes 4 of 4",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "seconds": 154.6,
+        "tools": [
+          "Bash",
+          "Read",
+          "Read",
+          "Edit",
+          "Bash"
+        ],
+        "fix": ".sort((a, b)",
+        "turns": 6,
+        "inputTokens": 25762,
+        "outputTokens": 1079
+      }
+    },
+    {
+      "scenario": "coding",
+      "model": "gemini-4-hydrogen",
+      "ok": true,
+      "seconds": 16.1,
+      "checks": [
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "ran the tests before editing anything",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "that first run showed the failing test",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "edited only src/stats.mjs",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "re-ran the tests after the last edit and all 4 passed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "test file and package.json are unchanged",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the source file changed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "independent `node --test` passes 4 of 4",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "seconds": 15.9,
+        "tools": [
+          "Bash",
+          "Read",
+          "Read",
+          "Bash",
+          "Read",
+          "Edit",
+          "Bash"
+        ],
+        "fix": ".sort((a, b)",
+        "turns": 6,
+        "inputTokens": 27451,
+        "outputTokens": 1016
+      }
+    },
+    {
+      "scenario": "coding",
+      "model": "gemini-4-neon",
+      "ok": true,
+      "seconds": 40.2,
+      "checks": [
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "ran the tests before editing anything",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "that first run showed the failing test",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "edited only src/stats.mjs",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "re-ran the tests after the last edit and all 4 passed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "test file and package.json are unchanged",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the source file changed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "independent `node --test` passes 4 of 4",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "seconds": 40.1,
+        "tools": [
+          "Bash",
+          "Bash",
+          "Read",
+          "Bash",
+          "Read",
+          "Edit",
+          "Bash"
+        ],
+        "fix": ".sort((a, b)",
+        "turns": 6,
+        "inputTokens": 26983,
+        "outputTokens": 837
+      }
+    },
+    {
+      "scenario": "vision",
+      "model": "gemini-4-argon",
+      "ok": true,
+      "seconds": 56.3,
+      "checks": [
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "opened the image with the Read tool",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "read the 5-digit code (36384) correctly",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "seconds": 56.3,
+        "turns": 2,
+        "inputTokens": 4674,
+        "outputTokens": 261
+      }
+    },
+    {
+      "scenario": "vision",
+      "model": "gemini-4-carbon",
+      "ok": true,
+      "seconds": 17.1,
+      "checks": [
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "opened the image with the Read tool",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "read the 5-digit code (46879) correctly",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "seconds": 17.1,
+        "turns": 2,
+        "inputTokens": 4686,
+        "outputTokens": 336
+      }
+    },
+    {
+      "scenario": "vision",
+      "model": "gemini-4-hydrogen",
+      "ok": true,
+      "seconds": 4.9,
+      "checks": [
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "opened the image with the Read tool",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "read the 5-digit code (14616) correctly",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "seconds": 4.9,
+        "turns": 2,
+        "inputTokens": 4588,
+        "outputTokens": 176
+      }
+    },
+    {
+      "scenario": "vision",
+      "model": "gemini-4-neon",
+      "ok": true,
+      "seconds": 10.3,
+      "checks": [
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "opened the image with the Read tool",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "read the 5-digit code (70221) correctly",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "seconds": 10.3,
+        "turns": 2,
+        "inputTokens": 4628,
+        "outputTokens": 267
+      }
+    },
+    {
+      "scenario": "subagent",
+      "model": "gemini-4-argon",
+      "ok": true,
+      "seconds": 48.8,
+      "checks": [
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "delegated to a subagent",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the answer names src/stats.mjs",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the subagent's own requests reached the bridge",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "seconds": 48.8,
+        "turns": 5,
+        "inputTokens": 17800,
+        "outputTokens": 725
+      }
+    },
+    {
+      "scenario": "subagent",
+      "model": "gemini-4-carbon",
+      "ok": true,
+      "seconds": 90.8,
+      "checks": [
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "delegated to a subagent",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the answer names src/stats.mjs",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the subagent's own requests reached the bridge",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "seconds": 90.8,
+        "turns": 5,
+        "inputTokens": 19019,
+        "outputTokens": 2325
+      }
+    },
+    {
+      "scenario": "subagent",
+      "model": "gemini-4-hydrogen",
+      "ok": true,
+      "seconds": 11.2,
+      "checks": [
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "delegated to a subagent",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the answer names src/stats.mjs",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the subagent's own requests reached the bridge",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "seconds": 11.1,
+        "turns": 5,
+        "inputTokens": 18140,
+        "outputTokens": 1033
+      }
+    },
+    {
+      "scenario": "subagent",
+      "model": "gemini-4-neon",
+      "ok": true,
+      "seconds": 24.8,
+      "checks": [
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "delegated to a subagent",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the answer names src/stats.mjs",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the subagent's own requests reached the bridge",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "seconds": 24.8,
+        "turns": 5,
+        "inputTokens": 18207,
+        "outputTokens": 1042
+      }
+    },
+    {
+      "scenario": "switch",
+      "model": "gemini-4-argon",
+      "ok": true,
+      "seconds": 18.5,
+      "checks": [
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "gemini-4-argon ran the Bash tool and saw the code",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "gemini-4-carbon recalled the tool output from the earlier model's turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "from": "gemini-4-argon",
+        "to": "gemini-4-carbon",
+        "seconds": 18.5,
+        "turns": 1,
+        "inputTokens": 1699,
+        "outputTokens": 117
+      }
+    },
+    {
+      "scenario": "switch",
+      "model": "gemini-4-carbon",
+      "ok": true,
+      "seconds": 29.9,
+      "checks": [
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "gemini-4-carbon ran the Bash tool and saw the code",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "gemini-4-hydrogen recalled the tool output from the earlier model's turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "from": "gemini-4-carbon",
+        "to": "gemini-4-hydrogen",
+        "seconds": 29.9,
+        "turns": 1,
+        "inputTokens": 1686,
+        "outputTokens": 138
+      }
+    },
+    {
+      "scenario": "switch",
+      "model": "gemini-4-hydrogen",
+      "ok": true,
+      "seconds": 9.7,
+      "checks": [
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "gemini-4-hydrogen ran the Bash tool and saw the code",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "gemini-4-neon recalled the tool output from the earlier model's turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "from": "gemini-4-hydrogen",
+        "to": "gemini-4-neon",
+        "seconds": 9.7,
+        "turns": 1,
+        "inputTokens": 1693,
+        "outputTokens": 142
+      }
+    },
+    {
+      "scenario": "switch",
+      "model": "gemini-4-neon",
+      "ok": true,
+      "seconds": 22.8,
+      "checks": [
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "gemini-4-neon ran the Bash tool and saw the code",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "Claude Code exited normally",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "gemini-4-argon recalled the tool output from the earlier model's turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the bridge completed at least one turn",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request named the expected Gemini 4 model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the Copilot SDK served every turn with the expected model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no request failed",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "from": "gemini-4-neon",
+        "to": "gemini-4-argon",
+        "seconds": 22.8,
+        "turns": 1,
+        "inputTokens": 1691,
+        "outputTokens": 95
+      }
+    },
+    {
+      "scenario": "launcher",
+      "model": "gemini-4-argon",
+      "ok": true,
+      "seconds": 8.2,
+      "checks": [
+        {
+          "name": "launcher exited 0",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "stdout is exactly the answer",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "seconds": 8.2,
+        "notice": true
+      }
+    },
+    {
+      "scenario": "launcher",
+      "model": "gemini-4-carbon",
+      "ok": true,
+      "seconds": 9.6,
+      "checks": [
+        {
+          "name": "launcher exited 0",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "stdout is exactly the answer",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "seconds": 9.6,
+        "notice": true
+      }
+    },
+    {
+      "scenario": "launcher",
+      "model": "gemini-4-hydrogen",
+      "ok": true,
+      "seconds": 5.3,
+      "checks": [
+        {
+          "name": "launcher exited 0",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "stdout is exactly the answer",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "seconds": 5.3,
+        "notice": true
+      }
+    },
+    {
+      "scenario": "launcher",
+      "model": "gemini-4-neon",
+      "ok": true,
+      "seconds": 7,
+      "checks": [
+        {
+          "name": "launcher exited 0",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "stdout is exactly the answer",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "seconds": 7,
+        "notice": true
+      }
+    },
+    {
+      "scenario": "tui",
+      "model": null,
+      "ok": true,
+      "seconds": 137.6,
+      "checks": [
+        {
+          "name": "the welcome header names Gemini 4 Hydrogen",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the /model picker lists all four Gemini 4 models",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the picker marks Hydrogen as current",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "gemini-4-hydrogen: answered in the TUI and the SDK served it",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "gemini-4-hydrogen: every turn in this step stayed on Gemini 4",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "gemini-4-neon: answered in the TUI and the SDK served it",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "gemini-4-neon: every turn in this step stayed on Gemini 4",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "gemini-4-argon: answered in the TUI and the SDK served it",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "gemini-4-argon: every turn in this step stayed on Gemini 4",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "gemini-4-carbon: answered in the TUI and the SDK served it",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "gemini-4-carbon: every turn in this step stayed on Gemini 4",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the last model answered with the code given to the first model",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "the recall was served by Carbon",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "every request in the session stayed on Gemini 4",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "choosing with \"s\" saved no model in settings.json",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "Claude Code exited with /exit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no bridge is left running",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "facts": {
+        "steps": [
+          {
+            "model": "gemini-4-hydrogen",
+            "turns": [
+              {
+                "requested": "github-copilot/claude-gemini-4-hydrogen",
+                "served": "gemini-4-hydrogen",
+                "in": 819,
+                "out": 619
+              },
+              {
+                "requested": "github-copilot/claude-gemini-4-hydrogen",
+                "served": "gemini-4-hydrogen",
+                "in": 12097,
+                "out": 48
+              }
+            ]
+          },
+          {
+            "model": "gemini-4-neon",
+            "turns": [
+              {
+                "requested": "github-copilot/claude-gemini-4-neon",
+                "served": "gemini-4-neon",
+                "in": 14747,
+                "out": 34
+              }
+            ]
+          },
+          {
+            "model": "gemini-4-argon",
+            "turns": [
+              {
+                "requested": "github-copilot/claude-gemini-4-argon",
+                "served": "gemini-4-argon",
+                "in": 14941,
+                "out": 29
+              }
+            ]
+          },
+          {
+            "model": "gemini-4-carbon",
+            "turns": [
+              {
+                "requested": "github-copilot/claude-gemini-4-carbon",
+                "served": "gemini-4-carbon",
+                "in": 15140,
+                "out": 65
+              }
+            ]
+          }
+        ],
+        "turns": 6
+      }
+    }
+  ],
+  "invariants": [
+    {
+      "name": "no bridge process is left running",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "~/.claude/settings.json was not touched",
+      "ok": true,
+      "detail": "its contents changed during the run"
+    },
+    {
+      "name": "no session was written to the real ~/.claude/projects",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "summary": {
+    "cases": 29,
+    "passed": 29,
+    "checks": 309,
+    "checksPassed": 309,
+    "invariantsOk": true,
+    "upstreamRetries": 0
+  }
+}

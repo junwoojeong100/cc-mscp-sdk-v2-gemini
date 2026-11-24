@@ -1,0 +1,65 @@
+# Puts this repository's bridge (src/server.mjs) behind LiteLLM for the four
+# Gemini 4 models. `gemini-litellm up` starts the bridge, exports its URL and
+# token, and then starts LiteLLM with this file.
+#
+# api_base must be the bridge root: LiteLLM appends /v1/messages itself.
+# The string after anthropic/ is sent as the request body's model, so it is the
+# Copilot model ID. model_name is the alias Claude Code asks LiteLLM for; keep
+# it free of [1m]-style suffixes, which LiteLLM rejects.
+#
+# The bridge token is sent as an x-api-key header (extra_headers), never as
+# api_key, on purpose. For an anthropic/ route that has an api_key, LiteLLM
+# answers Claude Code's /v1/messages/count_tokens requests by posting the whole
+# conversation and that key to https://api.anthropic.com. Without an api_key it
+# counts locally and sends nothing. Keep it that way, and start LiteLLM only
+# through gemini-litellm up, which also sets GHCP_BRIDGE_URL.
+#
+# model_info tells LiteLLM what these models accept. It does not know Gemini 4
+# behind an anthropic/ route and would drop Claude Code's thinking/effort
+# settings before they reach the bridge. The bridge applies each model's real
+# limits itself (xhigh runs as high on all four models).
+
+model_list:
+  - model_name: gemini-4-argon
+    litellm_params:
+      model: anthropic/gemini-4-argon
+      api_base: os.environ/GHCP_BRIDGE_URL
+      extra_headers:
+        x-api-key: os.environ/GHCP_BRIDGE_TOKEN
+    model_info: &effort_passthrough
+      supports_adaptive_thinking: true
+      supports_xhigh_reasoning_effort: true
+
+  - model_name: gemini-4-carbon
+    litellm_params:
+      model: anthropic/gemini-4-carbon
+      api_base: os.environ/GHCP_BRIDGE_URL
+      extra_headers:
+        x-api-key: os.environ/GHCP_BRIDGE_TOKEN
+    model_info: *effort_passthrough
+
+  - model_name: gemini-4-hydrogen
+    litellm_params:
+      model: anthropic/gemini-4-hydrogen
+      api_base: os.environ/GHCP_BRIDGE_URL
+      extra_headers:
+        x-api-key: os.environ/GHCP_BRIDGE_TOKEN
+    model_info: *effort_passthrough
+
+  - model_name: gemini-4-neon
+    litellm_params:
+      model: anthropic/gemini-4-neon
+      api_base: os.environ/GHCP_BRIDGE_URL
+      extra_headers:
+        x-api-key: os.environ/GHCP_BRIDGE_TOKEN
+    model_info: *effort_passthrough
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  # Required so x-claude-code-session-id and x-claude-code-agent-id reach the
+  # bridge. Without them the bridge cannot tell conversations or subagents
+  # apart and serves all their requests one at a time, as one conversation.
+  # It does not forward a client's x-api-key. Leave
+  # forward_llm_provider_auth_headers unset: that separate setting does, and it
+  # overrides the x-api-key header above.
+  forward_client_headers_to_llm_api: true

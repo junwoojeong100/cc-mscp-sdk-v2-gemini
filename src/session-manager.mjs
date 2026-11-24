@@ -1,0 +1,1751 @@
+import { createHash, randomUUID } from "node:crypto";
+
+import { defineTool } from "@microsoft/copilot-sdk";
+
+import {
+  extractReasoningEffort,
+  extractSystem,
+  extractTurnInput,
+  serializeConversationTail,
+} from "./anthropic.mjs";
+import { createCopilotClient } from "./copilot-client.mjs";
+import {
+  abortSession,
+  deleteClientSession,
+  disconnectSession,
+  submitToolResult,
+} from "./copilot-session-rpc.mjs";
+import {
+  resolveCopilotModel,
+  resolveReasoningEffort,
+  sdkContextOptionsFor,
+} from "./model-map.mjs";
+import { applyRequestPolicy, BridgeRequestError } from "./request-policy.mjs";
+import { sessionError, UpstreamError } from "./upstream-errors.mjs";
+import { readVerificationModelState, verificationEffort } from "./verification-observer.mjs";
+
+const CONTINUATION_PROMPT =
+  "Continue from the prior conversation and follow the current system instructions.";
+const BACKGROUND_TOOL_WAIT_MESSAGE =
+  "Waiting for the background tool to finish.";
+const TOOL_RESULT_UPDATE_PROMPT =
+  "A previously started external tool has produced an additional result. " +
+  "Use the update below to continue the current task.";
+const DEFAULT_MAX_REPLAY_BYTES = 256 * 1024 * 1024;
+const DEFAULT_MAX_STATES = 64;
+const DEFAULT_STATE_IDLE_TTL_MS = 30 * 60 * 1000;
+const DEFAULT_PENDING_TOOL_WAIT_MS = 10_000;
+const DEFAULT_MAX_TOOL_RESULTS = 32;
+const DEFAULT_ABORT_TIMEOUT_MS = 5_000;
+const DEFAULT_CLEANUP_TIMEOUT_MS = 5_000;
+const DEFAULT_SESSION_OPERATION_TIMEOUT_MS = 60_000;
+const DEFAULT_MAX_TURN_DURATION_MS = 30 * 60_000;
+const MCP_DISCOVERY_TIMEOUT_MS = 10_000;
+// Connected by the runtime on the first turn but not reported by mcp.discover.
+const BUILTIN_MCP_SERVERS = Object.freeze(["github-mcp-server"]);
+// Claude can call a tool the client never declared (ExitPlanMode while in plan
+// mode). Such a call is expected never to be registered, so no result can ever
+// arrive -- but that is an expectation, not a guarantee: the runtime that
+// decides what to register is out of process, and the installed SDK only
+// forwards what it receives (dist/session.js, _handleBroadcastEvent). So the
+// drop below never assumes it, and checks pendingByToolCallId instead.
+const PENDING_TOOL_UNREGISTERED = "pending_tool_unregistered";
+// Copilot can still register a dropped tool call moments after the turn ended,
+// so a bounded number of dropped call ids is remembered to ignore it.
+const MAX_DROPPED_TOOL_CALLS = 64;
+const MAX_RECENT_TURN_EVENTS = 8;
+// Normally evicted states remembered per MAX_STATES slot, so they can resume.
+const EVICTED_STATES_PER_STATE = 4;
+// Sibling turns remembered per family; states older than a dropped one replay.
+const MAX_FAMILY_TURNS = 16;
+
+function hash(value) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function turnDiagnostics(requestId, responseId) {
+  const startedAt = performance.now();
+  const rpc = {
+    send: { started: 0, acknowledged: 0, failed: 0 },
+    toolResult: { started: 0, acknowledged: 0, failed: 0 },
+  };
+  const eventCounts = {};
+  const recentEvents = [];
+  // Callers supply fixed event/operation names, never SDK payloads.
+  const record = (type, scope) => {
+    const key = `${scope}:${type}`;
+    eventCounts[key] = (eventCounts[key] || 0) + 1;
+    recentEvents.push({ type, scope, elapsedMs: Math.round(performance.now() - startedAt) });
+    if (recentEvents.length > MAX_RECENT_TURN_EVENTS) recentEvents.shift();
+  };
+  return {
+    requestId,
+    responseId,
+    startedAt,
+    rpc,
+    eventCounts,
+    recentEvents,
+    record,
+    async call(name, operation) {
+      rpc[name].started += 1;
+      record(`${name}.started`, "rpc");
+      try {
+        const result = await operation();
+        rpc[name].acknowledged += 1;
+        record(`${name}.acknowledged`, "rpc");
+        return result;
+      } catch (error) {
+        rpc[name].failed += 1;
+        record(`${name}.failed`, "rpc");
+        throw error;
+      }
+    },
+  };
+}
+
+function emitTurnDiagnostic(onDiagnostic, event) {
+  const failed = () => {
+    try {
+      console.error(JSON.stringify({
+        event: "bridge.diagnostic_error",
+        diagnosticEvent: event.event,
+        requestId: event.requestId,
+        responseId: event.responseId,
+      }));
+    } catch {}
+  };
+  try {
+    Promise.resolve(onDiagnostic(event)).catch(failed);
+  } catch {
+    failed();
+  }
+}
+
+function toolResultHash(value, prompt, toolName) {
+  return hash(
+    JSON.stringify({
+      ...(toolName === "Agent" ? { prompt } : {}),
+      value,
+    }),
+  );
+}
+
+function toolSignature(tools = []) {
+  return hash(
+    JSON.stringify(
+      tools.map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        input_schema: tool.input_schema,
+      })),
+    ),
+  ).slice(0, 16);
+}
+
+function createSdkTools(tools = []) {
+  return tools.map((tool) =>
+    defineTool(tool.name, {
+      description: tool.description,
+      parameters: tool.input_schema || { type: "object", properties: {} },
+      skipPermission: true,
+      defer: "never",
+      overridesBuiltInTool: true,
+    }),
+  );
+}
+
+function firstHeaderValue(headers, name) {
+  const value = headers[name] ?? headers[name.toLowerCase()];
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function claudeSessionFamily(headers, anonymousSessionId) {
+  return [
+    firstHeaderValue(headers, "x-claude-code-session-id") ||
+      `anonymous:${anonymousSessionId}`,
+    firstHeaderValue(headers, "x-claude-code-agent-id") || "root",
+  ].join(":");
+}
+
+function createStateIdentity({
+  anonymousSessionId,
+  headers,
+  model,
+  systemMessage,
+  tools,
+}) {
+  const claudeSessionId =
+    firstHeaderValue(headers, "x-claude-code-session-id") ||
+    `anonymous:${anonymousSessionId}`;
+  const claudeAgentId =
+    firstHeaderValue(headers, "x-claude-code-agent-id") || "root";
+  const parts = {
+    claudeAgentId,
+    claudeSessionId,
+    model,
+    systemHash: hash(systemMessage).slice(0, 16),
+    toolSignature: toolSignature(tools),
+  };
+  return {
+    familyKey: [claudeSessionId, claudeAgentId].join(":"),
+    key: [
+    claudeSessionId,
+    claudeAgentId,
+    model,
+      parts.toolSignature,
+      parts.systemHash,
+    ].join(":"),
+    parts,
+  };
+}
+
+function createAbortError() {
+  const error = new Error("The Claude Code request was aborted.");
+  error.name = "AbortError";
+  return error;
+}
+
+function contextLimitError(tokenLimit) {
+  return new BridgeRequestError(
+    `prompt is too long: GitHub Copilot would reduce conversation history${tokenLimit ? ` at ${tokenLimit} input tokens` : ""}. Compact the conversation before retrying.`,
+  );
+}
+
+export class SessionOperationTimeoutError extends Error {
+  constructor(operation, timeoutMs) {
+    super(`Timed out waiting for GitHub Copilot ${operation} after ${timeoutMs}ms.`);
+    this.name = "SessionOperationTimeoutError";
+  }
+}
+
+async function bestEffortWithin(operation, timeoutMs) {
+  let timer;
+  try {
+    await Promise.race([
+      Promise.resolve().then(operation).catch(() => {}),
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function aggregateUsage(events) {
+  if (!events.length) return null;
+  return events.reduce(
+    (usage, event) => ({
+      cacheReadTokens:
+        usage.cacheReadTokens + (event.cacheReadTokens || 0),
+      cacheWriteTokens:
+        usage.cacheWriteTokens + (event.cacheWriteTokens || 0),
+      contentFilterTriggered:
+        usage.contentFilterTriggered ||
+        Boolean(event.contentFilterTriggered),
+      finishReason: event.finishReason || usage.finishReason,
+      inputTokens: usage.inputTokens == null || event.inputTokens == null
+        ? undefined : usage.inputTokens + event.inputTokens,
+      outputTokens: usage.outputTokens == null || event.outputTokens == null
+        ? undefined : usage.outputTokens + event.outputTokens,
+      reasoningTokens:
+        usage.reasoningTokens + (event.reasoningTokens || 0),
+    }),
+    {
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      contentFilterTriggered: false,
+      finishReason: null,
+      inputTokens: 0,
+      outputTokens: 0,
+      reasoningTokens: 0,
+    },
+  );
+}
+
+// Claude Code puts user text beside tool results (Skill reminders, messages
+// queued in the TUI). It rides inside a result so the model reads it in the
+// same turn that consumes the results.
+function withSiblingInput(value, { prompt, attachments = [] }) {
+  const binary = [
+    ...(value.binaryResultsForLlm || []),
+    ...attachments.map((attachment) => ({
+      data: attachment.data,
+      mimeType: attachment.mimeType,
+      type: attachment.mimeType.startsWith("image/") ? "image" : "resource",
+      description: attachment.displayName,
+    })),
+  ];
+  return {
+    ...value,
+    textResultForLlm: [value.textResultForLlm, prompt].filter(Boolean).join("\n\n"),
+    ...(binary.length ? { binaryResultsForLlm: binary } : {}),
+    ...(value.error ? { error: [value.error, prompt].filter(Boolean).join("\n\n") } : {}),
+  };
+}
+
+function historyContentBlock(block) {
+  if (!block || typeof block !== "object" || Array.isArray(block)) return block;
+  const { cache_control, ...content } = block;
+  if (block.type === "tool_result" && Array.isArray(block.content)) {
+    content.content = block.content.map(historyContentBlock);
+  }
+  return content;
+}
+
+function historyMessage(message) {
+  if (!message || typeof message !== "object" || Array.isArray(message)) return message;
+  const { cache_control, ...content } = message;
+  if (Array.isArray(message.content)) content.content = message.content.map(historyContentBlock);
+  return content;
+}
+
+function historySnapshot(messages = []) {
+  // Claude moves transient system annotations between requests; they are not turns.
+  return messages.filter((message) => message?.role !== "system").map((message) => ({
+    hash: hash(JSON.stringify(historyMessage(message))),
+    role: message?.role,
+    toolResultIds: Array.isArray(message?.content)
+      ? message.content
+          .filter((block) => block?.type === "tool_result")
+          .map((block) => block.tool_use_id)
+          .sort()
+      : [],
+  }));
+}
+
+// Comparing against a sibling's history, any tool-result update counts as a
+// continuation: mistaking a side call for one costs a replay, the reverse
+// loses the sibling's turn.
+const ANY_TOOL_ID = Object.freeze({ has: () => true });
+
+function historiesDiverged(previous, current, knownToolIds = new Set()) {
+  if (!previous) return false;
+  if (current.length < previous.length) return true;
+  for (let index = 0; index < previous.length; index += 1) {
+    if (previous[index].hash === current[index]?.hash) continue;
+    const previousIds = previous[index].toolResultIds;
+    const currentIds = current[index]?.toolResultIds || [];
+    const compatibleToolUpdate =
+      index === previous.length - 1 &&
+      current[index]?.role === "user" &&
+      currentIds.length > 0 &&
+      currentIds.every((id) => knownToolIds.has(id)) &&
+      (previousIds.length === 0 ||
+        (previousIds.length === currentIds.length &&
+          previousIds.every(
+            (id, toolIndex) => id === currentIds[toolIndex],
+          )));
+    if (!compatibleToolUpdate) return true;
+  }
+  return false;
+}
+
+// Claude Code may later clear or merge a tool result, which is still the same turn.
+function sharedPrefixLength(previous, current) {
+  let index = 0;
+  while (index < previous.length && index < current.length && (previous[index].hash === current[index].hash ||
+    (previous[index].role === "user" && current[index].role === "user" && current[index].toolResultIds.length > 0 &&
+      previous[index].toolResultIds.join("\0") === current[index].toolResultIds.join("\0")))) index += 1;
+  return index;
+}
+
+// A sibling turn continued the conversation past what a state has seen when
+// the incoming history keeps more of the sibling's history than that, or all
+// of it, so the sibling's reply follows. Only the state's own snapshot counts
+// as seen: a rewind may have replaced its reply with the sibling's.
+function siblingContinued(snapshot, seen, current) {
+  return sharedPrefixLength(snapshot, current) > seen ||
+    (snapshot.length >= seen && !historiesDiverged(snapshot, current, ANY_TOOL_ID));
+}
+
+export class SessionManager {
+  constructor({
+    baseDirectory,
+    preferredModel,
+    logLevel = "error",
+    turnTimeoutMs = 300_000,
+    maxTurnDurationMs = DEFAULT_MAX_TURN_DURATION_MS,
+    maxReplayBytes = DEFAULT_MAX_REPLAY_BYTES,
+    maxStates = DEFAULT_MAX_STATES,
+    maxToolResults = DEFAULT_MAX_TOOL_RESULTS,
+    onDiagnostic,
+    verifyObservation = false,
+    abortTimeoutMs = DEFAULT_ABORT_TIMEOUT_MS,
+    cleanupTimeoutMs = DEFAULT_CLEANUP_TIMEOUT_MS,
+    sessionOperationTimeoutMs = DEFAULT_SESSION_OPERATION_TIMEOUT_MS,
+    pendingToolWaitMs = DEFAULT_PENDING_TOOL_WAIT_MS,
+    stateIdleTtlMs = DEFAULT_STATE_IDLE_TTL_MS,
+    mcpDiscoveryTimeoutMs = MCP_DISCOVERY_TIMEOUT_MS,
+    client,
+  }) {
+    this.client = client ?? createCopilotClient({ baseDirectory, logLevel });
+    this.preferredModel = preferredModel;
+    this.turnTimeoutMs = turnTimeoutMs;
+    this.maxTurnDurationMs = maxTurnDurationMs;
+    this.maxReplayBytes = maxReplayBytes;
+    this.maxStates = maxStates;
+    this.maxToolResults = maxToolResults;
+    this.abortTimeoutMs = abortTimeoutMs;
+    this.cleanupTimeoutMs = cleanupTimeoutMs;
+    this.sessionOperationTimeoutMs = sessionOperationTimeoutMs;
+    this.shutdownController = new AbortController();
+    this.onDiagnostic = onDiagnostic || (() => {});
+    this.verifyObservation = verifyObservation === true;
+    this.pendingToolWaitMs = pendingToolWaitMs;
+    this.stateIdleTtlMs = stateIdleTtlMs;
+    this.mcpDiscoveryTimeoutMs = mcpDiscoveryTimeoutMs;
+    this.models = [];
+    this.disabledMcpServers = [];
+    this.anonymousSessionId = randomUUID();
+    this.familyQueues = new Map();
+    this.familyHeads = new Map();
+    this.evictedStates = new Map();
+    this.stateCreations = new Map();
+    this.stateEvictions = new Map();
+    this.states = new Map();
+  }
+
+  async start() {
+    if (this.shutdownController.signal.aborted) this.shutdownController = new AbortController();
+    await this.client.start();
+    this.models = await this.client.listModels();
+    this.disabledMcpServers = await this.#mcpServersToDisable();
+  }
+
+  // The runtime starts every user, workspace and plugin MCP server for each SDK
+  // session, yet availableTools exposes only custom:* tools, so none of them can
+  // ever reach the model. disabledMcpServers needs the exact registered names
+  // (plugin servers are not named after their executable), and an empty
+  // mcpServers map does not replace the discovered ones.
+  async #mcpServersToDisable() {
+    let discover;
+    try {
+      discover = this.client.rpc?.mcp?.discover;
+    } catch {
+      discover = undefined;
+    }
+    let discovered = [];
+    if (typeof discover === "function") {
+      let timer;
+      try {
+        const result = await Promise.race([
+          this.client.rpc.mcp.discover({ workingDirectory: process.cwd() }),
+          new Promise((_, reject) => {
+            timer = setTimeout(
+              () => reject(new Error(`MCP discovery exceeded ${this.mcpDiscoveryTimeoutMs}ms`)),
+              this.mcpDiscoveryTimeoutMs,
+            );
+          }),
+        ]);
+        discovered = (result?.servers ?? [])
+          .map((server) => server?.name)
+          .filter((name) => typeof name === "string" && name.length > 0);
+        this.onDiagnostic({
+          event: "bridge.mcp_servers_disabled",
+          count: new Set([...BUILTIN_MCP_SERVERS, ...discovered]).size,
+        });
+      } catch (error) {
+        this.onDiagnostic({
+          event: "bridge.mcp_discovery_failed",
+          error: error?.name || "Error",
+          message: String(error?.message || error).slice(0, 200),
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    return [...new Set([...BUILTIN_MCP_SERVERS, ...discovered])];
+  }
+
+  listModels() {
+    return [...this.models];
+  }
+
+  async stop() {
+    this.shutdownController.abort();
+    await Promise.allSettled([...this.familyQueues.values(), ...this.stateCreations.values()]);
+    await Promise.allSettled(
+      [...this.states].map(([key, state]) => this.#evictState(key, state, { abort: true })),
+    );
+    await Promise.allSettled(this.stateEvictions.values());
+    this.familyHeads.clear();
+    this.evictedStates.clear();
+    await this.client.stop();
+  }
+
+  resolveModel(requested) {
+    return resolveCopilotModel({
+      requested,
+      availableIds: this.models.map((model) => model.id),
+      preferredModel: this.preferredModel,
+    });
+  }
+
+  // The error a request in this Claude Code session would get once Copilot
+  // starts reducing history, with the token limit its latest state reported.
+  contextLimitErrorFor(headers) {
+    const family = this.familyHeads.get(claudeSessionFamily(headers, this.anonymousSessionId));
+    return contextLimitError(this.states.get(family?.lastKey)?.contextLimit);
+  }
+
+  resolveReasoningEffort(modelId, requested) {
+    const model = this.models.find((candidate) => candidate.id === modelId);
+    return resolveReasoningEffort({ requested, model });
+  }
+
+  async execute(body, headers, { requestId, responseId, onReady, onEvent, signal } = {}) {
+    signal = signal
+      ? AbortSignal.any([signal, this.shutdownController.signal])
+      : this.shutdownController.signal;
+    const diagnostics = turnDiagnostics(requestId, responseId);
+    const familyKey = claudeSessionFamily(
+      headers,
+      this.anonymousSessionId,
+    );
+    const previous = this.familyQueues.get(familyKey) || Promise.resolve();
+    let started = false;
+    const run = previous.then(() => {
+      started = true;
+      return this.#executeForFamily(body, headers, {
+        onReady,
+        onEvent,
+        signal,
+        diagnostics,
+      });
+    });
+    const tracked = run.catch(() => {}).finally(() => {
+      if (this.familyQueues.get(familyKey) === tracked) {
+        this.familyQueues.delete(familyKey);
+        this.#pruneFamily(familyKey);
+      }
+    });
+    this.familyQueues.set(familyKey, tracked);
+    return new Promise((resolve, reject) => {
+      const onAbort = () => {
+        if (!started) {
+          signal.removeEventListener("abort", onAbort);
+          reject(createAbortError());
+        }
+      };
+      signal.addEventListener("abort", onAbort, { once: true });
+      run.then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
+      if (signal.aborted) onAbort();
+    });
+  }
+
+  #sessionOperation(operation, invoke, { signal, diagnostics, onAbandoned } = {}) {
+    const startedAt = performance.now();
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (error, value) => {
+        if (settled) return false;
+        settled = true;
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", onAbort);
+        diagnostics?.record(`${operation}.${error ? "failed" : "acknowledged"}`, "setup");
+        if (error) {
+          emitTurnDiagnostic(this.onDiagnostic, {
+            event: "bridge.session_operation_failed",
+            operation,
+            requestId: diagnostics?.requestId,
+            responseId: diagnostics?.responseId,
+            reason: error.name === "AbortError" ? "aborted"
+              : error instanceof SessionOperationTimeoutError ? "timeout" : "error",
+            elapsedMs: Math.round(performance.now() - startedAt),
+            timeoutMs: this.sessionOperationTimeoutMs,
+          });
+          reject(error);
+        } else resolve(value);
+        return true;
+      };
+      const onAbort = () => finish(createAbortError());
+      const timer = setTimeout(
+        () => finish(new SessionOperationTimeoutError(operation, this.sessionOperationTimeoutMs)),
+        this.sessionOperationTimeoutMs,
+      );
+      signal?.addEventListener("abort", onAbort, { once: true });
+      if (signal?.aborted) { onAbort(); return; }
+      diagnostics?.record(`${operation}.started`, "setup");
+      Promise.resolve().then(() => {
+        if (signal?.aborted) throw createAbortError();
+        return invoke();
+      }).then((value) => {
+        if (!finish(null, value) && onAbandoned) {
+          Promise.resolve().then(() => onAbandoned(value)).catch(() => {
+            emitTurnDiagnostic(this.onDiagnostic, { event: "bridge.session_cleanup_failed", operation });
+          });
+        }
+      }, (error) => finish(error));
+    });
+  }
+
+  async #discardSession(session, sessionId) {
+    emitTurnDiagnostic(this.onDiagnostic, { event: "bridge.session_creation_abandoned" });
+    await bestEffortWithin(() => abortSession(session), this.cleanupTimeoutMs);
+    await bestEffortWithin(() => disconnectSession(session), this.cleanupTimeoutMs);
+    await bestEffortWithin(() => deleteClientSession(this.client, sessionId), this.cleanupTimeoutMs);
+  }
+
+  async #executeForFamily(body, headers, { onReady, onEvent, signal, diagnostics }) {
+    if (signal?.aborted) throw createAbortError();
+    await this.#evictExpiredStates();
+    body = applyRequestPolicy(body, this.onDiagnostic);
+    const model = this.resolveModel(body.model);
+    const reasoningEffort = this.resolveReasoningEffort(
+      model,
+      extractReasoningEffort(body),
+    );
+    let state = await this.#getOrCreateState(body, headers, {
+      model,
+      reasoningEffort,
+      signal,
+      diagnostics,
+    });
+    if (state.contextReduction) {
+      const tokenLimit = state.contextReduction.tokenLimit ?? state.contextLimit;
+      emitTurnDiagnostic(this.onDiagnostic, {
+        event: "bridge.context_limit",
+        model: state.model,
+        phase: "between_requests",
+        ...(Number.isSafeInteger(tokenLimit) ? { tokenLimit } : {}),
+      });
+      await this.#evictState(state.identity.key, state, { abort: true, deletePersisted: true });
+      throw contextLimitError(tokenLimit);
+    }
+    const currentHistory = historySnapshot(body.messages);
+    const family = this.familyHeads.get(state.identity.familyKey);
+    // The family queue serializes identity changes. A cached or resumed state
+    // has not seen any sibling turn Copilot accepted since its own last request,
+    // even when its old transcript still matches a prefix of this request. A
+    // side call on an unrelated history (a title, WebFetch processing) is not
+    // part of this conversation, so it leaves the state alone.
+    const since = state.familySeq ?? 0;
+    const staleIdentity = !state.fresh && Boolean(family) && (since < family.floor ||
+      [...family.turns].some(([key, turn]) => key !== state.identity.key && turn.seq > since &&
+        siblingContinued(turn.snapshot, state.historySnapshot?.length ?? 0, currentHistory)));
+    const knownToolIds = new Set([
+      ...state.pendingByToolCallId.keys(),
+      ...state.completedToolCalls.keys(),
+    ]);
+    if (
+      staleIdentity || historiesDiverged(
+        state.historySnapshot,
+        currentHistory,
+        knownToolIds,
+      )
+    ) {
+      this.onDiagnostic({
+        event: "bridge.history_reconciled",
+        currentMessages: currentHistory.length,
+        previousMessages: state.historySnapshot?.length ?? 0,
+        reason: staleIdentity ? "identity_stale" : "history_diverged",
+      });
+      await this.#evictState(state.identity.key, state, {
+        abort: true,
+        deletePersisted: true,
+      });
+      state = await this.#getOrCreateState(body, headers, {
+        model,
+        reasoningEffort,
+        signal,
+        diagnostics,
+      });
+    }
+    state.historySnapshot = currentHistory;
+    state.familySeq = family?.seq ?? 0;
+    state.lastUsedAt = Date.now();
+    onReady?.({ model: state.model });
+    if (state.firstTurnReserved) {
+      state.firstTurnReserved = false;
+    } else {
+      state.activeTurns += 1;
+    }
+    const run = state.queue.then(() =>
+      this.#executeLocked(state, body, reasoningEffort, onEvent, signal, diagnostics),
+    );
+    // A rejected turn must not prevent later requests from using this session.
+    state.queue = run.catch(() => {});
+    try {
+      const result = await run;
+      this.#recordFamilyTurn(state, currentHistory);
+      return result;
+    } catch (error) {
+      // Copilot took the turn, so Claude Code may keep its prompt and partial reply.
+      if (diagnostics.rpc.send.acknowledged || diagnostics.rpc.toolResult.acknowledged) {
+        this.#recordFamilyTurn(state, currentHistory, { succeeded: false });
+      }
+      throw error;
+    } finally {
+      state.activeTurns -= 1;
+      state.lastUsedAt = Date.now();
+      if (state.invalidated) {
+        await this.#evictState(state.identity.key, state, {
+          deletePersisted: true,
+        });
+      }
+      await this.#enforceStateLimit(state.identity.key);
+    }
+  }
+
+  async #getOrCreateState(body, headers, { model, reasoningEffort, signal, diagnostics }) {
+    const systemMessage = extractSystem(body.system, body.messages);
+    const identity = createStateIdentity({
+      anonymousSessionId: this.anonymousSessionId,
+      headers,
+      model,
+      systemMessage,
+      tools: body.tools,
+    });
+    const { key } = identity;
+
+    const eviction = this.stateEvictions.get(key);
+    if (eviction) await eviction;
+    const existing = this.states.get(key);
+    if (existing) return existing;
+    const inFlight = this.stateCreations.get(key);
+    if (inFlight) return inFlight;
+    const carried = this.evictedStates.get(key);
+    this.evictedStates.delete(key);
+    // Copilot reduced this history before the state was evicted; the caller
+    // refuses it exactly as it would for the live state.
+    if (carried?.contextReduction) return { identity, model, contextReduction: carried.contextReduction };
+
+    const sibling = [...this.states.values()].find(
+      (state) => state.identity.familyKey === identity.familyKey,
+    );
+    if (sibling) {
+      this.onDiagnostic({
+        event: "bridge.state_split",
+        family: hash(identity.familyKey).slice(0, 12),
+        changes: ["model", "toolSignature", "systemHash"].filter(
+          (field) =>
+            sibling.identity.parts[field] !== identity.parts[field],
+        ),
+      });
+    }
+
+    const creation = (async () => {
+    const tools = createSdkTools(body.tools);
+    const contextOptions = sdkContextOptionsFor(this.models.find((entry) => entry.id === model));
+    // setModel() keeps the flat contextTier/modelCapabilities names; sessions
+    // take them under `inference`.
+    const inference = {
+      ...(contextOptions.contextTier ? { contextTier: contextOptions.contextTier } : {}),
+      ...(contextOptions.modelCapabilities ? { capabilities: contextOptions.modelCapabilities } : {}),
+      ...(reasoningEffort ? { reasoningEffort } : {}),
+    };
+    const sessionOptions = {
+      model,
+      ...(Object.keys(inference).length ? { inference } : {}),
+      tools: {
+        availableTools: tools.map((tool) => `custom:${tool.name}`),
+        definitions: tools,
+        search: { enabled: false },
+      },
+      events: { streaming: true },
+      state: { infiniteSessions: { enabled: false } },
+      systemMessage: {
+        mode: "replace",
+        content: systemMessage,
+      },
+      ...(this.disabledMcpServers.length
+        ? { mcp: { disabledServers: [...this.disabledMcpServers] } }
+        : {}),
+    };
+
+    let session;
+    let sessionId;
+    let resumed = false;
+    const waitForSession = (operation, id, invoke) => this.#sessionOperation(operation, invoke, {
+      signal,
+      diagnostics,
+      onAbandoned: (lateSession) => this.#discardSession(lateSession, id),
+    });
+    // Only a session this process evicted with a known transcript is resumed,
+    // so the request can still be checked against that transcript.
+    if (carried) {
+      try {
+        session = await waitForSession("session.resume", carried.sessionId, () => this.client.resumeSession(carried.sessionId, {
+          ...sessionOptions,
+          continuePendingWork: true,
+        }));
+        sessionId = carried.sessionId;
+        resumed = true;
+      } catch (error) {
+        if (error.name === "AbortError" || error instanceof SessionOperationTimeoutError) throw error;
+      }
+    }
+
+    if (!session) {
+      // Never reused, so neither a late abandoned session nor another bridge
+      // process can collide with it.
+      sessionId = `cc-gemini-${randomUUID().replaceAll("-", "")}`;
+      session = await waitForSession("session.create", sessionId, () => this.client.createSession({
+        sessionId,
+        ...sessionOptions,
+      }));
+    }
+
+    const state = {
+      model,
+      contextOptions,
+      activeTurns: 1,
+      reasoningEffort,
+      session,
+      sessionId,
+      fresh: !resumed,
+      firstTurnReserved: true,
+      identity,
+      // The tool signature is part of the state key, so the declared names
+      // never change for the lifetime of this state.
+      declaredToolNames: new Set(tools.map((tool) => tool.name)),
+      droppedToolCallIds: new Set(),
+      historySnapshot: resumed ? carried.historySnapshot : null,
+      familySeq: resumed ? carried.familySeq : undefined,
+      lastUsedAt: Date.now(),
+      queue: Promise.resolve(),
+      pendingByToolCallId: new Map(),
+      pendingRequestWaiters: new Map(),
+      completedToolCalls: new Map(),
+      deliveredToolPrompts: new Set(),
+      invalidated: false,
+    };
+
+    session.on("external_tool.requested", (event) => {
+      this.#rememberPendingRequest(state, event);
+    });
+    session.on("external_tool.completed", (event) => {
+      this.#forgetPendingRequest(state, event.data.requestId);
+    });
+    for (const eventType of [
+      "session.compaction_start",
+      "session.compaction_complete",
+      "session.context_cleared",
+      "session.snapshot_rewind",
+      "session.truncation",
+    ]) {
+      session.on(eventType, (event) => {
+        if (event.agentId) return;
+        if (eventType === "session.compaction_start" ||
+            event.data?.tokensRemovedDuringTruncation > 0 ||
+            event.data?.messagesRemovedDuringTruncation > 0 ||
+            event.data?.tokensRemoved > 0 || event.data?.messagesRemoved > 0) {
+          state.contextReduction = {
+            tokenLimit: Number.isSafeInteger(event.data?.tokenLimit) ? event.data.tokenLimit : state.contextLimit,
+          };
+        }
+        state.completedToolCalls.clear();
+        state.deliveredToolPrompts.clear();
+        state.pendingByToolCallId.clear();
+        for (const waiters of state.pendingRequestWaiters.values()) {
+          for (const waiter of waiters) {
+            waiter.reject(
+              new Error("Tool result wait was invalidated by history change."),
+            );
+          }
+        }
+        state.pendingRequestWaiters.clear();
+      });
+    }
+    session.on("session.usage_info", (event) => {
+      if (event.agentId || !Number.isSafeInteger(event.data?.tokenLimit)) return;
+      const { tokenLimit, currentTokens } = event.data;
+      if (state.contextLimit !== tokenLimit) {
+        state.contextLimit = tokenLimit;
+        emitTurnDiagnostic(this.onDiagnostic, {
+          event: "bridge.context_budget",
+          model,
+          contextTier: contextOptions.contextTier ?? "default",
+          tokenLimit,
+          ...(Number.isSafeInteger(currentTokens) ? { currentTokens } : {}),
+        });
+      }
+    });
+
+    this.states.set(key, state);
+    await this.#enforceStateLimit(key);
+    return state;
+    })();
+    this.stateCreations.set(key, creation);
+    try {
+      return await creation;
+    } finally {
+      this.stateCreations.delete(key);
+    }
+  }
+
+  async #executeLocked(state, body, reasoningEffort, onEvent, signal, diagnostics) {
+    if (signal?.aborted) throw createAbortError();
+    await this.#applyReasoningEffort(state, reasoningEffort, signal, diagnostics);
+    if (this.verifyObservation) {
+      const observation = await readVerificationModelState(state.session, signal);
+      emitTurnDiagnostic(this.onDiagnostic, {
+        event: "bridge.verify_model_state",
+        requestId: diagnostics.requestId,
+        responseId: diagnostics.responseId,
+        sessionId: state.session.sessionId ?? null,
+        model: state.model,
+        requestedEffort: verificationEffort(body),
+        appliedEffort: reasoningEffort ?? null,
+        requestedContextTier: state.contextOptions.contextTier ?? null,
+        ...observation,
+      });
+      // Only observation failures are tolerated; real cancellation still stops
+      // the request, including a cached tool-result response.
+      if (signal?.aborted) throw createAbortError();
+    }
+    const input = extractTurnInput(body);
+    const send = (options) => diagnostics.call("send", () => state.session.send(options));
+
+    if (input.kind === "tool-results" && !state.fresh) {
+      if (input.toolResults.length > this.maxToolResults) {
+        throw new Error(
+          `A turn cannot return more than ${this.maxToolResults} tool results.`,
+        );
+      }
+      const promptKey = input.prompt || input.attachments.length
+        ? hash(JSON.stringify({
+            toolUseIds: input.toolResults.map((result) => result.toolUseId).sort(),
+            prompt: input.prompt,
+            attachments: input.attachments,
+          }))
+        : null;
+      const deliverPrompt = promptKey && !state.deliveredToolPrompts.has(promptKey);
+      const results = input.toolResults.map((result) => ({
+        ...result,
+        resultHash: toolResultHash(
+          result.value,
+          input.prompt,
+          state.completedToolCalls.get(result.toolUseId)?.toolName,
+        ),
+        completed: state.completedToolCalls.get(result.toolUseId),
+      }));
+      const changedCompleted = results.filter(
+        (result) =>
+          result.completed &&
+          result.completed.resultHash !== result.resultHash,
+      );
+      const pendingResults = results.filter((result) => !result.completed);
+      if (changedCompleted.length) {
+        if (pendingResults.length) {
+          throw new Error(
+            "Cannot process updated and pending tool results in the same turn.",
+          );
+        }
+        if (
+          changedCompleted.some(
+            (result) => result.completed.toolName !== "Agent",
+          )
+        ) {
+          throw new Error(
+            "Only background Agent tool calls can publish updated results.",
+          );
+        }
+        const prompt = [
+          TOOL_RESULT_UPDATE_PROMPT,
+          ...changedCompleted.map(({ value }) => value.textResultForLlm),
+          deliverPrompt ? input.prompt : null,
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+        const turn = await this.#waitForTurn(
+          state,
+          async () => {
+            await send({
+              prompt,
+              attachments: deliverPrompt ? input.attachments : [],
+            });
+            if (deliverPrompt) state.deliveredToolPrompts.add(promptKey);
+          },
+          onEvent,
+          signal,
+          diagnostics,
+        );
+        for (const result of changedCompleted) {
+          state.completedToolCalls.set(result.toolUseId, {
+            ...result.completed,
+            lastTurn: turn,
+            resultHash: result.resultHash,
+          });
+        }
+        return turn;
+      }
+
+      if (!pendingResults.length) {
+        if (deliverPrompt) {
+          // Claude Code resends accepted results with new text only when it never
+          // recorded the earlier answer: that request failed or was aborted, and
+          // either way its SDK turn is over (an unacknowledged abort evicts the
+          // state). A turn that stopped on newer tool calls is answered with those
+          // results instead. state.queue lets that request settle first, so no
+          // turn is in flight for this default (enqueue) send to queue behind.
+          const turn = await this.#waitForTurn(state, async () => {
+            await send({
+              prompt: input.prompt || CONTINUATION_PROMPT,
+              attachments: input.attachments,
+            });
+            state.deliveredToolPrompts.add(promptKey);
+          }, onEvent, signal, diagnostics);
+          for (const result of results) result.completed.lastTurn = turn;
+          return turn;
+        }
+        const cachedTurn = results.findLast(
+          (result) => result.completed.lastTurn,
+        )?.completed.lastTurn;
+        if (cachedTurn) return cachedTurn;
+
+        return this.#waitForTurn(
+          state,
+          () =>
+            send({
+              prompt: CONTINUATION_PROMPT,
+              attachments: [],
+            }),
+          onEvent,
+          signal,
+          diagnostics,
+        );
+      }
+
+      const handledTools = [];
+      const turn = await this.#waitForTurn(state, async () => {
+        // A separate send, even an enqueued one, runs as a turn of its own once
+        // the tool-result turn ends, and the next request would then read that
+        // turn's answer. "immediate" instead preempts the results. So the last
+        // pending result carries the user's text, and the text counts as
+        // delivered only once that result is accepted: a retry after it was
+        // rejected carries the text again, a retry of any other result does not.
+        const promptCarrier = deliverPrompt ? pendingResults.at(-1).toolUseId : null;
+        const submissions = await Promise.allSettled(
+          pendingResults.map(async ({ toolUseId, value }) => {
+            const result = toolUseId === promptCarrier ? withSiblingInput(value, input) : value;
+            const pending = await this.#waitForPendingRequest(
+              state,
+              toolUseId,
+              signal,
+            );
+            await diagnostics.call("toolResult", () => submitToolResult(
+              state.session,
+              {
+                requestId: pending.requestId,
+                result,
+              },
+              { toolCallId: toolUseId },
+            ));
+            state.pendingByToolCallId.delete(toolUseId);
+            if (toolUseId === promptCarrier) state.deliveredToolPrompts.add(promptKey);
+            const completed = {
+              lastTurn: null,
+              // Hash what the client sent, so a retry with the same message
+              // still matches after the text was folded in.
+              resultHash: toolResultHash(
+                value,
+                input.prompt,
+                pending.toolName,
+              ),
+              toolName: pending.toolName,
+            };
+            state.completedToolCalls.set(toolUseId, completed);
+            handledTools.push({ completed, toolUseId });
+          }),
+        );
+        const failure = submissions.find(
+          (submission) => submission.status === "rejected",
+        );
+        if (failure) throw failure.reason;
+      }, onEvent, signal, diagnostics);
+      let completedTurn = turn;
+      if (
+        handledTools.some(({ completed }) => completed.toolName === "Agent") &&
+        !turn.message.content &&
+        !turn.message.toolRequests?.length
+      ) {
+        completedTurn = {
+          ...turn,
+          message: {
+            ...turn.message,
+            content: BACKGROUND_TOOL_WAIT_MESSAGE,
+          },
+        };
+      }
+      for (const { completed } of handledTools) {
+        completed.lastTurn = completedTurn;
+      }
+      for (const result of results) {
+        if (result.completed && !result.completed.lastTurn) {
+          result.completed.lastTurn = completedTurn;
+        }
+      }
+      return completedTurn;
+    }
+
+    const messages = body.messages || [];
+    let prompt = input.kind === "prompt" ? input.prompt : CONTINUATION_PROMPT;
+    let attachments = input.kind === "prompt" ? input.attachments : [];
+    if (state.fresh && messages.length) {
+      // Forked agents can start with inherited history that ends in an assistant
+      // message or an already-completed parent tool result.
+      const priorMessages =
+        input.kind === "prompt"
+          ? messages.slice(0, input.messageIndex)
+          : messages;
+      if (priorMessages.length) {
+        const prior = serializeConversationTail(
+          priorMessages,
+          this.maxReplayBytes,
+        );
+        if (prior.truncated) {
+          this.onDiagnostic({
+            event: "bridge.history_replay_truncated",
+            maxBytes: this.maxReplayBytes,
+            messages: priorMessages.length,
+          });
+        }
+        attachments = [...prior.attachments, ...attachments];
+        prompt = `<prior_conversation>\n${prior.text}\n</prior_conversation>\n\n${prompt || CONTINUATION_PROMPT}`;
+      }
+    }
+    const replaying = state.fresh;
+    state.fresh = false;
+
+    try {
+      return await this.#waitForTurn(
+        state,
+        () => send({ prompt: prompt || CONTINUATION_PROMPT, attachments }),
+        onEvent,
+        signal,
+        diagnostics,
+      );
+    } catch (error) {
+      // Copilot may never have taken the replay, so the retry must replay it
+      // into a new session instead of sending only its newest prompt.
+      if (replaying && !diagnostics.rpc.send.acknowledged) state.invalidated = true;
+      throw error;
+    }
+  }
+
+  async #applyReasoningEffort(state, reasoningEffort, signal, diagnostics) {
+    if (reasoningEffort === state.reasoningEffort) return;
+
+    try {
+      const options = {
+        ...state.contextOptions,
+        ...(reasoningEffort ? { reasoningEffort } : {}),
+      };
+      await this.#sessionOperation("session.set_model", () => state.session.setModel(
+        state.model,
+        Object.keys(options).length ? options : undefined,
+      ), { signal, diagnostics });
+    } catch (error) {
+      state.invalidated = true;
+      throw error;
+    }
+    state.reasoningEffort = reasoningEffort;
+  }
+
+  #waitForTurn(state, trigger, onEvent, signal, diagnostics) {
+    const messages = [];
+    const subscriptions = [];
+    const usageEvents = [];
+    const startedAt = performance.now();
+
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      let completionStarted = false;
+      let turnStarted = false;
+      let triggerFinished = false;
+      let deferredCompletion = null;
+      let aborting = false;
+      let timeout;
+      let hardTimeout;
+      let lastProgressAt = startedAt;
+      // The HTTP status of the last root model call that failed, while
+      // neither progress nor the retried call has followed it.
+      let upstreamRetryStatus = null;
+      const report = (event, details = {}) => {
+        const outstanding = (name) => {
+          const rpc = diagnostics.rpc[name];
+          return rpc.started - rpc.acknowledged - rpc.failed;
+        };
+        const stage = outstanding("send") ? "send"
+          : outstanding("toolResult") ? "tool_result"
+          : state.pendingRequestWaiters.size ? "tool_registration"
+          : !triggerFinished ? "trigger" : "model";
+        emitTurnDiagnostic(this.onDiagnostic, {
+          event,
+          timestamp: new Date().toISOString(),
+          requestId: diagnostics.requestId,
+          responseId: diagnostics.responseId,
+          state: hash(state.identity.key).slice(0, 12),
+          model: state.model,
+          elapsedMs: Math.round(performance.now() - diagnostics.startedAt),
+          turnElapsedMs: Math.round(performance.now() - startedAt),
+          idleMs: Math.round(performance.now() - lastProgressAt),
+          stage,
+          triggerFinished,
+          turnStarted,
+          completionStarted,
+          deferredCompletion: Boolean(deferredCompletion),
+          upstreamRetryStatus,
+          messages: messages.length,
+          toolRequests: messages.reduce((count, message) => count + (message.toolRequests?.length || 0), 0),
+          usageEvents: usageEvents.length,
+          pendingToolCalls: state.pendingByToolCallId.size,
+          pendingRegistrations: state.pendingRequestWaiters.size,
+          rpc: Object.fromEntries(Object.entries(diagnostics.rpc).map(([name, value]) => [name, { ...value }])),
+          eventCounts: { ...diagnostics.eventCounts },
+          recentEvents: diagnostics.recentEvents.slice(),
+          ...details,
+        });
+      };
+      const terminate = (error, reason) => {
+        if (settled || aborting) return;
+        aborting = true;
+        report(reason === "timeout" || reason === "duration_limit" ? "bridge.turn_timeout" : "bridge.turn_aborted", { reason });
+        const abortStartedAt = performance.now();
+        let abortTimer;
+        const abortDeadline = new Promise((resolve) => {
+          abortTimer = setTimeout(
+            () => resolve({ acknowledged: false }),
+            this.abortTimeoutMs,
+          );
+        });
+        void Promise.race([
+          abortSession(state.session)
+            .then(() => ({ acknowledged: true }))
+            .catch(() => ({ acknowledged: false })),
+          abortDeadline,
+        ])
+          .finally(() => clearTimeout(abortTimer))
+          .then(({ acknowledged }) => {
+            if (!acknowledged) state.invalidated = true;
+            report("bridge.turn_abort_completed", {
+              reason,
+              acknowledged,
+              abortElapsedMs: Math.round(performance.now() - abortStartedAt),
+            });
+            settle(error);
+          });
+      };
+      const onAbort = () => terminate(createAbortError(), "client_abort");
+      // The runtime waits out an upstream 429 or 5xx itself, retry-after
+      // included, and emits nothing while it waits. A turn cut short then
+      // fails with that upstream error, which Claude Code retries, instead
+      // of as a bridge failure.
+      const cutShort = (message) => {
+        const upstream = upstreamRetryStatus == null ? null : sessionError({
+          statusCode: upstreamRetryStatus,
+          message: `${message} GitHub Copilot was waiting to retry an upstream HTTP ${upstreamRetryStatus}.`,
+        });
+        return upstream instanceof UpstreamError ? upstream : new Error(message);
+      };
+      const armIdleTimeout = () => {
+        if (settled || aborting) return;
+        lastProgressAt = performance.now();
+        upstreamRetryStatus = null;
+        clearTimeout(timeout);
+        timeout = setTimeout(() => terminate(
+          cutShort("Timed out waiting for the GitHub Copilot model turn."),
+          "timeout",
+        ), this.turnTimeoutMs);
+      };
+      armIdleTimeout();
+      hardTimeout = setTimeout(() => terminate(
+        cutShort(`GitHub Copilot turn exceeded the hard duration limit (${this.maxTurnDurationMs}ms).`),
+        "duration_limit",
+      ), this.maxTurnDurationMs);
+
+      const settle = (error, message) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        clearTimeout(hardTimeout);
+        signal?.removeEventListener("abort", onAbort);
+        for (const unsubscribe of subscriptions) unsubscribe();
+        if (error) reject(error);
+        else {
+          resolve({
+            model: state.model,
+            message,
+            usage: aggregateUsage(usageEvents),
+            // The model that served each root call, which can differ from the
+            // requested one.
+            servedModels: [...new Set(usageEvents.map((usage) => usage.model).filter(Boolean))],
+          });
+        }
+      };
+      const finish = (error, message) => {
+        if (aborting) return;
+        if (error || triggerFinished) {
+          settle(error, message);
+          return;
+        }
+        deferredCompletion = { message };
+      };
+
+      // A model call that came back with no text, no tool call and 0 input and 0
+      // output tokens produced no answer: the runtime saw an empty response and, when
+      // its stream recovery is off or used up, still ends the turn as finished.
+      // Reported as an overloaded upstream, it makes Claude Code retry the request
+      // instead of ending the conversation on nothing. An answer that used tokens,
+      // even an empty one, is passed on as it is.
+      const answeredNothing = () => usageEvents.length > 0 &&
+        usageEvents.every((usage) => usage.inputTokens === 0 && usage.outputTokens === 0);
+
+      const finishTurn = () => {
+        if (settled || completionStarted || !turnStarted) return;
+
+        const combined = messages.length
+          ? this.#combineMessages(messages)
+          : { content: "", toolRequests: [] };
+        if (!combined.toolRequests.length) {
+          if (!combined.content && answeredNothing()) {
+            report("bridge.upstream_empty_response");
+            finish(sessionError({
+              statusCode: 503,
+              message: "GitHub Copilot returned an empty response from the model. Retrying the request usually works.",
+            }));
+            return;
+          }
+          finish(null, combined);
+          return;
+        }
+
+        // A call to a tool the client never declared can never be registered,
+        // so drop it now instead of waiting out the pending tool timeout.
+        const declared = [];
+        const undeclared = [];
+        for (const request of combined.toolRequests) {
+          const target = this.#isDeclaredTool(state, request.name)
+            ? declared
+            : undeclared;
+          target.push(request);
+        }
+        // A call Copilot already registered comes back and is waited for like
+        // any declared call, because the client is the only party that can
+        // answer it.
+        declared.push(...this.#dropToolRequests(state, undeclared));
+        if (!declared.length) {
+          finish(null, { ...combined, toolRequests: declared });
+          return;
+        }
+
+        completionStarted = true;
+        Promise.allSettled(
+          declared.map((request) =>
+            this.#waitForPendingRequest(
+              state,
+              request.toolCallId,
+              signal,
+            ),
+          ),
+        )
+          .then((outcomes) => {
+            const fatal = outcomes.find(
+              (outcome) =>
+                outcome.status === "rejected" &&
+                outcome.reason?.code !== PENDING_TOOL_UNREGISTERED,
+            );
+            if (fatal) {
+              finish(fatal.reason);
+              return;
+            }
+            // Dropping the phantom call keeps the content the model already
+            // produced instead of failing the whole turn over it. A call whose
+            // registration landed after its wait timed out is not a phantom,
+            // so it comes back here and stays in the turn.
+            const late = this.#dropToolRequests(
+              state,
+              declared.filter(
+                (request, index) => outcomes[index].status === "rejected",
+              ),
+            );
+            const kept = new Set(
+              declared
+                .filter((request, index) => outcomes[index].status === "fulfilled")
+                .concat(late)
+                .map((request) => request.toolCallId),
+            );
+            finish(null, {
+              ...combined,
+              toolRequests: combined.toolRequests.filter((request) =>
+                kept.has(request.toolCallId),
+              ),
+            });
+          })
+          // Nothing else awaits this chain, so without a terminal handler a
+          // throw here would surface as an unhandled rejection and the turn
+          // would hang until the turn timeout.
+          .catch((error) => finish(error));
+      };
+
+      const onMessage = (event) => {
+        if (event.agentId || aborting || settled) return;
+        turnStarted = true;
+        messages.push(event.data);
+        const { chunkCount, chunkIndex } = event.data;
+        const finalChunk =
+          !Number.isInteger(chunkCount) ||
+          !Number.isInteger(chunkIndex) ||
+          chunkIndex === chunkCount - 1;
+        if (
+          finalChunk &&
+          messages.some((message) => message.toolRequests?.length)
+        ) {
+          finishTurn();
+        }
+      };
+      const onTurnStart = (event) => {
+        if (!event.agentId) turnStarted = true;
+      };
+      // When the runtime's own retries run out it ends the turn first and
+      // reports session.error after that, so a turn that produced no message
+      // waits for the error or for the idle that follows it.
+      const onTurnEnd = (event) => {
+        if (!event.agentId && messages.length) finishTurn();
+      };
+      // assistant.idle also arrives while background work holds back
+      // session.idle.
+      const onIdle = (event) => {
+        if (!event.agentId) finishTurn();
+      };
+      const onError = (event) => {
+        finish(sessionError(event.data));
+      };
+
+      const subscribe = (type, handler = () => {}) => state.session.on(type, (event) => {
+        diagnostics.record(type, event.agentId ? "agent" : "root");
+        if (!event.agentId && (
+          ["assistant.turn_start", "assistant.message", "assistant.turn_end"].includes(type) ||
+          (["assistant.message_delta", "assistant.reasoning_delta"].includes(type) && event.data?.deltaContent?.length) ||
+          (type === "assistant.tool_call_delta" && event.data?.inputDelta?.length)
+        )) armIdleTimeout();
+        handler(event);
+      });
+      subscriptions.push(
+        subscribe("assistant.turn_start", onTurnStart),
+        subscribe("assistant.message", onMessage),
+        subscribe("assistant.message_delta", (event) => {
+          if (!aborting && !settled) onEvent?.(event);
+        }),
+        subscribe("assistant.tool_call_delta", (event) => {
+          if (!aborting && !settled) onEvent?.(event);
+        }),
+        subscribe("assistant.reasoning_delta", (event) => {
+          if (!aborting && !settled) onEvent?.(event);
+        }),
+        subscribe("assistant.usage", (event) => {
+          if (!event.agentId) usageEvents.push(event.data);
+        }),
+        subscribe("assistant.turn_end", onTurnEnd),
+        subscribe("assistant.idle", onIdle),
+        subscribe("session.idle", finishTurn),
+        subscribe("session.error", onError),
+        // A failure without a status is a transport failure.
+        subscribe("model.call_failure", (event) => {
+          if (event.agentId || event.data?.source !== "top_level") return;
+          const { statusCode } = event.data;
+          upstreamRetryStatus = Number.isInteger(statusCode) ? statusCode : null;
+        }),
+        // The SDK's generated types omit this event, but it arrives when the
+        // wait ends and the retried call begins. A turn that stalls after
+        // that is not waiting on the upstream error any more.
+        subscribe("model.call_start", (event) => {
+          if (!event.agentId) upstreamRetryStatus = null;
+        }),
+        ...["session.compaction_start", "session.truncation"].map((type) => subscribe(type, (event) => {
+          if (event.agentId || settled || aborting || !state.contextReduction) return;
+          state.invalidated = true;
+          const tokenLimit = state.contextReduction.tokenLimit;
+          report("bridge.context_limit", {
+            phase: "active_turn",
+            ...(Number.isSafeInteger(tokenLimit) ? { tokenLimit } : {}),
+          });
+          terminate(contextLimitError(tokenLimit), "context_limit");
+        })),
+        subscribe("external_tool.requested"),
+        subscribe("external_tool.completed"),
+      );
+
+      signal?.addEventListener("abort", onAbort, { once: true });
+      if (signal?.aborted) {
+        onAbort();
+        return;
+      }
+      Promise.resolve(trigger())
+        .then(() => {
+          triggerFinished = true;
+          if (!aborting && deferredCompletion) {
+            settle(null, deferredCompletion.message);
+          }
+        })
+        .catch((error) => {
+          if (!aborting) settle(error);
+        });
+    });
+  }
+
+  #combineMessages(messages) {
+    // A repeated call id is one call, so the JSON body, the SSE body, the stop
+    // reason and bridge.turn_completed.toolUses all count it once.
+    const seen = new Set();
+    return {
+      ...messages.at(-1),
+      content: messages.map((message) => message.content || "").join(""),
+      toolRequests: messages.flatMap((message) => message.toolRequests || []).filter((request) =>
+        typeof request?.toolCallId !== "string" ||
+        (!seen.has(request.toolCallId) && Boolean(seen.add(request.toolCallId)))),
+      outputTokens: messages.reduce(
+        (total, message) => total + (message.outputTokens || 0),
+        0,
+      ),
+    };
+  }
+
+  #isDeclaredTool(state, name) {
+    // An unnamed request can only be classified by waiting for Copilot.
+    if (typeof name !== "string" || !name) return true;
+    return state.declaredToolNames.has(name);
+  }
+
+  // Returns the requests that were NOT dropped because Copilot had already
+  // registered them, which the caller must keep in the turn.
+  #dropToolRequests(state, requests) {
+    const dropped = [];
+    const registered = [];
+    for (const request of requests) {
+      const { name, toolCallId } = request;
+      // Copilot is waiting on a result for a call it registered, and only the
+      // client can produce one. Deleting the pending entry here would answer
+      // nobody: the client never sees the call and Copilot waits forever.
+      if (state.pendingByToolCallId.has(toolCallId)) {
+        registered.push(request);
+        continue;
+      }
+      // An unregistered call is the case this drop exists for. The client never
+      // sees it, so it never returns a result, and a pending entry created by a
+      // late registration would keep this state from ever being evicted.
+      state.pendingByToolCallId.delete(toolCallId);
+      if (state.droppedToolCallIds.has(toolCallId)) continue;
+      if (state.droppedToolCallIds.size >= MAX_DROPPED_TOOL_CALLS) {
+        state.droppedToolCallIds.delete(
+          state.droppedToolCallIds.values().next().value,
+        );
+      }
+      state.droppedToolCallIds.add(toolCallId);
+      dropped.push({ name, toolCallId });
+    }
+
+    // The sink is caller-supplied and this runs on a turn-completion chain, so
+    // a broken reporter must not decide whether the turn resolves. State is
+    // already consistent above, which leaves nothing to unwind here.
+    for (const { name, toolCallId } of dropped) {
+      try {
+        this.onDiagnostic({
+          event: "bridge.unregistered_tool_call",
+          tool: name,
+          toolCallId,
+        });
+      } catch {}
+    }
+
+    return registered;
+  }
+
+  #rememberPendingRequest(state, event) {
+    // The turn already dropped this call, so remembering it now would pin the
+    // state on a request that can never be answered. The marker is only read
+    // here, never consumed: Copilot can retry a registration, and a consuming
+    // test would let the retry create exactly the pending entry this guard
+    // exists to prevent. MAX_DROPPED_TOOL_CALLS already caps the marker set in
+    // #dropToolRequests, so leaving the marker in place cannot grow it.
+    if (state.droppedToolCallIds.has(event.data.toolCallId)) return;
+    const pending = {
+      requestId: event.data.requestId,
+      toolName: event.data.toolName,
+    };
+    state.pendingByToolCallId.set(event.data.toolCallId, pending);
+    const waiters = state.pendingRequestWaiters.get(event.data.toolCallId);
+    if (waiters) {
+      state.pendingRequestWaiters.delete(event.data.toolCallId);
+      for (const waiter of waiters) waiter.resolve(pending);
+    }
+  }
+
+  #forgetPendingRequest(state, requestId) {
+    for (const [toolCallId, pending] of state.pendingByToolCallId) {
+      if (pending.requestId === requestId) {
+        state.pendingByToolCallId.delete(toolCallId);
+        return;
+      }
+    }
+  }
+
+  async #waitForPendingRequest(state, toolCallId, signal) {
+    if (signal?.aborted) throw createAbortError();
+    const pending = state.pendingByToolCallId.get(toolCallId);
+    if (pending) return pending;
+
+    return new Promise((resolve, reject) => {
+      const waiters = state.pendingRequestWaiters.get(toolCallId) || new Set();
+      const cleanup = () => {
+        clearTimeout(timeout);
+        signal?.removeEventListener("abort", onAbort);
+        waiters.delete(waiter);
+        if (!waiters.size) state.pendingRequestWaiters.delete(toolCallId);
+      };
+      const waiter = {
+        reject: (error) => {
+          cleanup();
+          reject(error);
+        },
+        resolve: (value) => {
+          cleanup();
+          resolve(value);
+        },
+      };
+      const onAbort = () => waiter.reject(createAbortError());
+      const timeout = setTimeout(() => {
+        const error = new Error(
+          `No pending GitHub Copilot tool call found for ${toolCallId}.`,
+        );
+        error.code = PENDING_TOOL_UNREGISTERED;
+        waiter.reject(error);
+      }, this.pendingToolWaitMs);
+      waiters.add(waiter);
+      state.pendingRequestWaiters.set(toolCallId, waiters);
+      signal?.addEventListener("abort", onAbort, { once: true });
+      if (signal?.aborted) onAbort();
+    });
+  }
+
+  async #evictExpiredStates() {
+    const now = Date.now();
+    for (const [key, state] of this.states) {
+      if (
+        state.activeTurns === 0 &&
+        state.pendingByToolCallId.size === 0 &&
+        state.pendingRequestWaiters.size === 0 &&
+        now - state.lastUsedAt >= this.stateIdleTtlMs
+      ) {
+        await this.#evictIdleState(key, state);
+      }
+    }
+  }
+
+  async #enforceStateLimit(protectedKey) {
+    if (this.states.size <= this.maxStates) return;
+    const idle = (state) =>
+      state.pendingByToolCallId.size === 0 && state.pendingRequestWaiters.size === 0;
+    const candidates = [...this.states.entries()]
+      .filter(([key, state]) => key !== protectedKey && state.activeTurns === 0)
+      .sort((left, right) => left[1].lastUsedAt - right[1].lastUsedAt);
+    // Idle states go first. A tool call Claude Code never answers (Esc, /clear,
+    // exit) would otherwise pin its state for the life of the bridge, so past
+    // them the least recently used pending-only states are discarded; a late
+    // result then cold-replays into a new session.
+    for (const [key, state] of [
+      ...candidates.filter(([, state]) => idle(state)),
+      ...candidates.filter(([, state]) => !idle(state)),
+    ]) {
+      if (this.states.size <= this.maxStates) break;
+      if (state.activeTurns > 0) continue;
+      if (idle(state)) await this.#evictIdleState(key, state);
+      else await this.#evictState(key, state, { abort: true, deletePersisted: true });
+    }
+  }
+
+  // Normal eviction keeps a resumable session, remembered with the transcript
+  // it holds, and remembers a history Copilot reduced so it stays refused.
+  #evictIdleState(key, state) {
+    const resumable = !state.fresh && !state.contextReduction && Boolean(state.historySnapshot);
+    return this.#evictState(key, state, { deletePersisted: !resumable, carry: true });
+  }
+
+  // A sibling turn matters only to a state of the family that can still
+  // continue, cached or resumable, and whose own last request came before it.
+  #recordFamilyTurn(state, snapshot, { succeeded = true } = {}) {
+    const { familyKey, key } = state.identity;
+    const family = this.familyHeads.get(familyKey) ?? { seq: 0, floor: 0, turns: new Map() };
+    this.familyHeads.set(familyKey, family);
+    family.seq += 1;
+    if (succeeded) family.lastKey = key;
+    family.turns.delete(key);
+    family.turns.set(key, { seq: family.seq, snapshot });
+    state.familySeq = family.seq;
+    const oldest = Math.min(...[...this.states.values(), ...this.evictedStates.values()]
+      .filter((entry) => (entry.identity?.familyKey ?? entry.familyKey) === familyKey && entry.familySeq !== undefined)
+      .map((entry) => entry.familySeq));
+    for (const [turnKey, turn] of family.turns) {
+      if (turn.seq > oldest && family.turns.size <= MAX_FAMILY_TURNS) break;
+      family.turns.delete(turnKey);
+      if (turn.seq > oldest) family.floor = turn.seq;
+    }
+  }
+
+  // Family turns only matter to a state that can still continue, cached or
+  // resumable. Any other next state is fresh and replays.
+  #pruneFamily(familyKey) {
+    if (this.familyQueues.has(familyKey)) return;
+    for (const { identity } of this.states.values()) if (identity.familyKey === familyKey) return;
+    for (const entry of this.evictedStates.values()) if (entry.familyKey === familyKey) return;
+    this.familyHeads.delete(familyKey);
+  }
+
+  async #evictState(
+    key,
+    state,
+    { abort = false, deletePersisted = false, carry = false } = {},
+  ) {
+    const existingEviction = this.stateEvictions.get(key);
+    if (existingEviction) return existingEviction;
+    if (this.states.get(key) !== state) return;
+
+    this.states.delete(key);
+    const { familyKey } = state.identity;
+    if (carry && (!deletePersisted || state.contextReduction)) {
+      this.evictedStates.set(key, deletePersisted
+        ? { familyKey, contextReduction: state.contextReduction }
+        : { familyKey, sessionId: state.sessionId, historySnapshot: state.historySnapshot, familySeq: state.familySeq });
+      for (const [evictedKey, entry] of this.evictedStates) {
+        if (this.evictedStates.size <= this.maxStates * EVICTED_STATES_PER_STATE) break;
+        this.evictedStates.delete(evictedKey);
+        this.#pruneFamily(entry.familyKey);
+      }
+    }
+    this.#pruneFamily(familyKey);
+    const eviction = (async () => {
+      for (const waiters of state.pendingRequestWaiters.values()) {
+        for (const waiter of waiters) {
+          waiter.reject(new Error("Copilot session state was evicted."));
+        }
+      }
+      state.pendingRequestWaiters.clear();
+      if (abort) {
+        await bestEffortWithin(
+          () => abortSession(state.session),
+          this.cleanupTimeoutMs,
+        );
+      }
+      await bestEffortWithin(
+        () => disconnectSession(state.session),
+        this.cleanupTimeoutMs,
+      );
+      if (deletePersisted) {
+        await bestEffortWithin(
+          () => deleteClientSession(this.client, state.sessionId),
+          this.cleanupTimeoutMs,
+        );
+      }
+    })();
+    this.stateEvictions.set(key, eviction);
+    try {
+      await eviction;
+    } finally {
+      if (this.stateEvictions.get(key) === eviction) {
+        this.stateEvictions.delete(key);
+      }
+    }
+  }
+}

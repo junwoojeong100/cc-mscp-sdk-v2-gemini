@@ -1,0 +1,102 @@
+{
+  "note": "Edited replay of real PTY recordings (waits are sped up and labelled). Not verification evidence: see verification/results-litellm.json.",
+  "video": {
+    "file": "demo.mp4",
+    "seconds": 229.9,
+    "bytes": 3106467
+  },
+  "chapters": [
+    {
+      "step": "STEP 1",
+      "title": "LiteLLM 설치",
+      "subtitle": "gemini-litellm setup  (처음 한 번)",
+      "start": 0.1
+    },
+    {
+      "step": "STEP 2",
+      "title": "환경 점검",
+      "subtitle": "gemini-doctor --litellm · gemini-models",
+      "start": 13.6
+    },
+    {
+      "step": "STEP 3",
+      "title": "게이트웨이 시작",
+      "subtitle": "gemini-litellm up · gemini-litellm status",
+      "start": 28
+    },
+    {
+      "step": "STEP 4",
+      "title": "첫 호출",
+      "subtitle": "claude-gemini-litellm  -p  (print 모드)",
+      "start": 46.8
+    },
+    {
+      "step": "STEP 5",
+      "title": "대화형으로 시작",
+      "subtitle": "처음 한 번만 나오는 Claude Code 첫 실행 화면",
+      "start": 70.4
+    },
+    {
+      "step": "STEP 6",
+      "title": "/model 로 모델 바꾸기",
+      "subtitle": "한 대화 안에서 Gemini 4 모델 4개를 모두 사용",
+      "start": 98.1
+    },
+    {
+      "step": "STEP 7",
+      "title": "코딩 실습",
+      "subtitle": "실패하는 테스트를 Gemini 가 고칩니다",
+      "start": 146
+    },
+    {
+      "step": "STEP 8",
+      "title": "이미지 읽기",
+      "subtitle": "Gemini 4 는 이미지를 이해합니다",
+      "start": 188.7
+    },
+    {
+      "step": "STEP 9",
+      "title": "정리",
+      "subtitle": "게이트웨이 확인과 종료",
+      "start": 203.7
+    },
+    {
+      "step": "검증",
+      "title": "검증 결과",
+      "subtitle": "이 실습은 실제 호출로 검증했습니다",
+      "start": 216.3
+    }
+  ],
+  "stills": [
+    "setup",
+    "doctor",
+    "models",
+    "gateway-up",
+    "gateway-status",
+    "print-one",
+    "print-four",
+    "first-theme",
+    "first-security",
+    "first-terminal",
+    "first-trust",
+    "first-trust-yes",
+    "tui-start",
+    "chat-hydrogen",
+    "picker",
+    "picker-select",
+    "switch-confirm",
+    "recall",
+    "four-models",
+    "turns",
+    "litellm-log",
+    "tests-fail",
+    "coding-working",
+    "coding-done",
+    "git-diff",
+    "tests-pass",
+    "vision",
+    "status-running",
+    "status-stopped",
+    "verify-report"
+  ]
+}
