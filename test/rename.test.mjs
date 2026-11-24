@@ -49,3 +49,11 @@ test("package.json's homepage is the repository's GitHub Pages address, and the 
     assert.ok(readme.includes(`](${homepage}${target})`), `README.md must link ${homepage}${target}; after renaming the repository, update its github.io links`);
   }
 });
+
+test("package.json's repository is the GitHub repository the guides tell learners to clone: the same name, and the owner of the Pages address", () => {
+  const { repository } = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+  const match = /^git\+https:\/\/github\.com\/([A-Za-z0-9-]+)\/([^/]+)\.git$/.exec(repository?.url ?? "");
+  assert.ok(match, `repository.url must look like git+https://github.com/<owner>/<name>.git, not ${repository?.url}`);
+  assert.equal(match[2], name, "repository.url must name the repository after package.json's name");
+  assert.equal(match[1].toLowerCase(), new URL(homepage).hostname.split(".")[0], "repository.url and homepage must have the same owner");
+});

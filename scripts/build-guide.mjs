@@ -170,6 +170,13 @@ const replacements = {
     if (!homepage) throw new Error("package.json has no homepage, the GitHub Pages address the guides link to");
     return homepage.endsWith("/") ? homepage : `${homepage}/`;
   },
+  // What a learner who opened the published guide types to get the repository.
+  "repo-url": () => {
+    const { repository } = JSON.parse(read("package.json"));
+    const url = typeof repository === "string" ? repository : repository?.url;
+    if (!url) throw new Error("package.json has no repository.url, the address the guides tell learners to clone");
+    return url.replace(/^git\+/, "");
+  },
   "sdk-version": () => results.environment.copilotSdk,
   "runtime-version": () => results.environment.copilotRuntime,
   "litellm-version": () => {

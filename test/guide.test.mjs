@@ -81,6 +81,19 @@ for (const track of Object.values(TRACKS)) {
     assert.match(html, /<video id="demo" controls preload="auto" playsinline /);
   });
 
+  test(`${label}: a reader of the web page is told how to get the repository, and that Git is needed`, { skip }, () => {
+    const { repository } = JSON.parse(read("package.json"));
+    const clone = `git clone ${repository.url.replace(/^git\+/, "")}`;
+    const start = html.indexOf('<section id="s1">');
+    const end = html.indexOf('<section id="s2">');
+    assert.ok(start >= 0 && end > start, "STEP 1 was not found");
+    const step1 = html.slice(start, end);
+    assert.ok(step1.includes(clone), `STEP 1 does not say: ${clone}`);
+    assert.ok(step1.indexOf(clone) < step1.indexOf("npm ci"), "the clone must come before npm ci");
+    // gemini-lab (labs/start) runs git init, add and commit, so Git is a prerequisite.
+    assert.ok(html.includes("<code>git --version</code>"), "Git is not listed under the prerequisites");
+  });
+
   test(`${label}: the verification numbers on the page are the recorded ones`, { skip }, () => {
     const recorded = results();
     assert.ok(html.includes(`<b>${recorded.summary.passed}/${recorded.summary.cases}</b>`));

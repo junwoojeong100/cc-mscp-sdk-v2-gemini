@@ -68,12 +68,12 @@ npm run site                          # Pages용 사이트 조립 → _site/ (�
 
 ## 저장소 이름을 바꿀 때
 
-저장소(폴더) 이름은 `package.json` 의 `name` 과 `homepage`(GitHub Pages 주소), 그리고 그 주소를 쓰는 README 링크에만 적혀 있습니다(`test/rename.test.mjs` 가 지킵니다). 가이드의 `cd …` 와 가이드 사이 링크, 브리지의 캐시 폴더 이름은 `package.json` 에서 따라옵니다. 이름을 바꾸려면
+저장소(폴더) 이름은 `package.json` 의 `name` · `homepage`(GitHub Pages 주소) · `repository`(`git clone` 주소), 그리고 그 주소를 쓰는 README 링크에만 적혀 있습니다(`test/rename.test.mjs` 가 지킵니다). 가이드의 `git clone …` · `cd …` 와 가이드 사이 링크, 브리지의 캐시 폴더 이름은 `package.json` 에서 따라옵니다. 이름을 바꾸려면
 
 ```bash
 claude-gemini-stop && gemini-litellm down     # 1. 떠 있는 브리지·게이트웨이 종료
 cd .. && mv <옛 이름> <새 이름> && cd <새 이름>
-# 2. package.json 의 "name" 과 "homepage"(https://<계정>.github.io/<새 이름>/) 를 고친다
+# 2. package.json 의 "name", "homepage"(https://<계정>.github.io/<새 이름>/), "repository"(git+https://github.com/<계정>/<새 이름>.git) 를 고친다
 npm install --package-lock-only               # 3. package-lock.json 의 이름 갱신
 npm run guide && npm run guide:litellm        # 4. 가이드의 cd 줄과 가이드 사이 링크 갱신
 # 5. README 의 github.io 링크를 새 주소로 고친다
