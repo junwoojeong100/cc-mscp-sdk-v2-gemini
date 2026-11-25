@@ -9,6 +9,8 @@ GitHub Copilot의 **Gemini 4 모델 4종**(Argon · Carbon · Hydrogen · Neon)�
 
 **👉 위 링크를 누르면 GitHub Pages에서 바로 열립니다.** 두 가이드를 한곳에서 고르려면 [랜딩 페이지](https://junwoojeong100.github.io/cc-mscp-sdk-v2-gemini/)로 가세요. 화면 캡처와 영상으로 된 1페이지 실습 가이드이고, `main` 에 푸시하면 두 가이드를 다시 만들어 자동으로 배포합니다. 내려받아 로컬에서 볼 때는 `guide.html` · `guide-litellm.html` 을 직접 여세요. 영상은 `assets/` 를 같은 위치에 두면 그 파일을, 없으면 위 주소의 영상을 재생합니다.
 
+**이미 쓰는 LiteLLM이 있다면** 새로 설치하지 않고 [그 LiteLLM에 연결](https://junwoojeong100.github.io/cc-mscp-sdk-v2-gemini/guide-litellm.html#existing)할 수 있습니다. 브리지를 `npm run bridge` 로 따로 켜고, 내 LiteLLM 설정에 Gemini 4 별칭 4개를 더한 뒤 `claude-gemini-litellm` 에 `LITELLM_BASE_URL` · `LITELLM_API_KEY` 를 알려 주면 됩니다.
+
 ```bash
 npm ci
 export PATH="$PWD/bin:$PATH"

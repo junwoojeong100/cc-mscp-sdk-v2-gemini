@@ -56,11 +56,13 @@ small{color:var(--muted)}
 .toc a{display:block;padding:6px 10px;border-radius:8px;color:var(--muted);text-decoration:none;line-height:1.4}
 .toc a:hover{background:var(--soft);color:var(--fg)}
 .toc a.active{background:var(--brand-soft);color:var(--brand);font-weight:700}
+.toc a.sub{padding-left:22px;font-size:13.5px}
 .toc .sep{height:1px;background:var(--line);margin:10px 10px}
 main{min-width:0}
 section{margin:0 0 64px}
 section>h2{font-size:28px;margin-bottom:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .step-no{display:inline-flex;align-items:center;justify-content:center;background:var(--brand);color:var(--brand-fg);font-size:13px;font-weight:800;letter-spacing:.04em;border-radius:999px;padding:4px 13px}
+.step-no.alt{background:transparent;color:var(--brand);box-shadow:inset 0 0 0 1.5px var(--brand)}
 .goal{color:var(--muted);font-size:17px;margin:0 0 18px}
 h3{font-size:19px;margin:30px 0 8px}
 
@@ -215,6 +217,7 @@ dialog#zoom img{display:block;max-width:96vw;max-height:92vh;border-radius:10px;
     <a href="#s1">STEP 1 · 설치 (LiteLLM)</a>
     <a href="#s2">STEP 2 · 점검</a>
     <a href="#s3">STEP 3 · 게이트웨이 시작</a>
+    <a class="sub" href="#existing">STEP 3 대신 · 기존 LiteLLM</a>
     <a href="#s4">STEP 4 · 첫 호출</a>
     <a href="#s5">STEP 5 · 대화형 시작</a>
     <a href="#s6">STEP 6 · 모델 전환</a>
@@ -254,6 +257,8 @@ dialog#zoom img{display:block;max-width:96vw;max-height:92vh;border-radius:10px;
         </ul>
       </div>
     </div>
+    <div class="callout tip"><b class="t">이미 LiteLLM을 쓰고 있나요?</b>
+      <p>새로 설치하지 않아도 됩니다. <b>내 LiteLLM에 Gemini 4 별칭 4개를 더하고 브리지만 따로 켜면</b> 같은 실습을 그대로 따라 할 수 있습니다. STEP 1의 LiteLLM 설치와 STEP 3 대신 <a href="#existing">기존 LiteLLM에 연결하기</a>를 보세요.</p></div>
   </section>
 
   <section id="video">
@@ -369,8 +374,8 @@ dialog#zoom img{display:block;max-width:96vw;max-height:92vh;border-radius:10px;
           <tr><th scope="row">Git</th><td><code>git --version</code></td><td>저장소를 내려받을 때, 그리고 <code>gemini-lab</code> 이 실습 폴더의 변경을 <code>git diff</code> 로 보여 줄 때 씁니다. 없으면 <code>brew install git</code></td></tr>
           <tr><th scope="row">Claude Code</th><td><code>claude --version</code></td><td>이 실습은 <b>{{claude-version}}</b> 에서 검증. Claude Code는 스스로 업데이트되므로 버전이 다르면 화면이 조금 달라질 수 있습니다</td></tr>
           <tr><th scope="row">GitHub Copilot CLI</th><td><code>copilot --version</code></td><td>없으면 <code>npm install -g @github/copilot</code></td></tr>
-          <tr><th scope="row">uv · Python 3.13</th><td><code>uv --version</code></td><td>LiteLLM을 이 저장소 안에 설치할 때 씁니다(STEP 1). 없으면 <code>brew install uv</code>. Python 3.13은 uv가 찾거나 내려받습니다</td></tr>
-          <tr><th scope="row">Copilot 사용 권한</th><td><code>gemini-doctor --litellm</code> (STEP 2)</td><td>Gemini 4 모델이 계정·조직 정책에서 허용돼 있어야 함</td></tr>
+          <tr><th scope="row">uv · Python 3.13</th><td><code>uv --version</code></td><td>LiteLLM을 이 저장소 안에 설치할 때 씁니다(STEP 1). 없으면 <code>brew install uv</code>. Python 3.13은 uv가 찾거나 내려받습니다. <b>이미 LiteLLM이 있으면 필요 없습니다</b>(<a href="#existing">기존 LiteLLM에 연결하기</a>)</td></tr>
+          <tr><th scope="row">Copilot 사용 권한</th><td><code>gemini-doctor --litellm</code> (STEP 2 · 내 LiteLLM이면 <code>--litellm</code> 없이)</td><td>Gemini 4 모델이 계정·조직 정책에서 허용돼 있어야 함</td></tr>
           <tr><th scope="row">운영체제</th><td>—</td><td>검증 환경은 macOS(Apple Silicon). Windows 기본 셸은 지원하지 않습니다</td></tr>
         </tbody>
       </table>
@@ -382,6 +387,8 @@ dialog#zoom img{display:block;max-width:96vw;max-height:92vh;border-radius:10px;
   <section id="s1">
     <h2><span class="step-no">STEP 1</span>설치 — 의존성과 LiteLLM</h2>
     <p class="goal">저장소를 내려받고 의존성을 설치하고, LiteLLM을 이 저장소 안(<code>.runtime/</code>, git 제외)에 한 번 설치하고, 이 터미널에서 명령들을 바로 쓸 수 있게 합니다.</p>
+    <div class="callout tip"><b class="t">이미 LiteLLM을 쓰고 있다면</b>
+      <p>아래 <code>gemini-litellm setup</code> 줄만 건너뜁니다(저장소를 받고 의존성을 설치하는 것은 그대로). LiteLLM은 새로 설치하지 않고 <a href="#existing">내 LiteLLM에 연결</a>합니다.</p></div>
     <div class="code"><span class="label">터미널</span><pre><code>git clone {{repo-url}}   <span class="c"># 처음 한 번만</span>
 cd {{repo-name}}
 npm ci
@@ -403,6 +410,8 @@ gemini-litellm setup           <span class="c"># LiteLLM 설치 (처음 한 번,
   <section id="s2">
     <h2><span class="step-no">STEP 2</span>점검 — 환경과 모델 확인</h2>
     <p class="goal">두 명령으로 “지금 바로 쓸 수 있는지”와 “Gemini 4 모델 4개가 보이는지”를 확인합니다. <code>--litellm</code> 을 붙이면 LiteLLM 관련 항목(uv · 설치 버전 · 마스터 키 · 게이트웨이)도 함께 봅니다.</p>
+    <div class="callout tip"><b class="t">이미 LiteLLM을 쓰고 있다면 <code>gemini-doctor</code> 에 <code>--litellm</code> 을 붙이지 마세요</b>
+      <p><code>--litellm</code> 은 이 저장소가 설치한 LiteLLM(STEP 1의 <code>gemini-litellm setup</code>)을 점검하는 옵션이라, 설치하지 않았다면 ✗ 가 나고 <code>gemini-litellm setup</code> 을 하라고 안내합니다. <code>gemini-doctor</code> 만 실행해 Node · Claude Code · Copilot · 모델 4개가 ✓ 이면 됩니다. 맨 아래 <code>Ready: run ./bin/claude-gemini</code> 는 직접 연결 경로의 안내이니 무시하세요. 다음은 <a href="#existing">기존 LiteLLM에 연결하기</a>입니다.</p></div>
     <div class="code"><span class="label">터미널</span><pre><code>copilot login               <span class="c"># 처음 한 번만 (브라우저로 인증)</span>
 gemini-doctor --litellm     <span class="c"># 환경 점검 (LiteLLM 포함)</span>
 gemini-models               <span class="c"># 이 계정의 Gemini 4 모델 목록</span></code></pre></div>
@@ -421,6 +430,8 @@ gemini-models               <span class="c"># 이 계정의 Gemini 4 모델 목�
   <section id="s3">
     <h2><span class="step-no">STEP 3</span>게이트웨이 시작 — 브리지와 LiteLLM 켜기</h2>
     <p class="goal">한 명령으로 <b>브리지</b>와 그 앞의 <b>LiteLLM</b>을 켭니다. 게이트웨이는 백그라운드에서 계속 돌고, Claude Code는 이 주소(<code>127.0.0.1:4000</code>)로 접속합니다.</p>
+    <div class="callout tip"><b class="t">이미 LiteLLM을 쓰고 있다면 이 단계를 건너뛰세요</b>
+      <p><code>gemini-litellm up</code> 은 이 저장소가 설치한 LiteLLM만 켭니다. 내 LiteLLM에는 바로 다음 절 <a href="#existing">기존 LiteLLM에 연결하기</a>가 이 단계를 대신합니다.</p></div>
     <div class="code"><span class="label">터미널</span><pre><code>gemini-litellm up        <span class="c"># 브리지 → LiteLLM 순서로 시작 (10초 안팎)</span>
 gemini-litellm status    <span class="c"># 상태 확인</span></code></pre></div>
     <figure class="shot">
@@ -448,6 +459,190 @@ general_settings:
       <p>LiteLLM 기본 포트는 4000 입니다. 다른 프로그램이 쓰고 있으면 <code>gemini-litellm up --port 4100</code> 으로 바꾸고, 이후 Claude Code 쪽은 <code>--litellm-base-url http://127.0.0.1:4100</code> 을 붙입니다.</p></div>
   </section>
 
+  <section id="existing">
+    <h2><span class="step-no alt">STEP 3 대신</span>기존 LiteLLM에 연결하기</h2>
+    <p class="goal">이미 쓰는 LiteLLM(직접 실행 · Docker · 서버)이 있으면 새로 설치할 필요가 없습니다. <b>내 LiteLLM에 Gemini 4 별칭 4개를 더하고, 브리지를 따로 켜 두면</b> 됩니다. 순서는 STEP 1(<code>gemini-litellm setup</code> 줄만 빼고) → STEP 2(<code>--litellm</code> 없이) → <b>이 절</b> → STEP 4~9 입니다. 달라지는 점은 해당 단계에 적어 두었습니다.</p>
+    <div class="callout tip"><b class="t">STEP 3 에서 <code>gemini-litellm up</code> 을 이미 했다면 이 절은 건너뛰세요</b>
+      <p>이 저장소의 LiteLLM을 켠 독자는 바로 <a href="#s4">STEP 4</a> 로 갑니다. 이 절은 <b>이미 쓰는 LiteLLM이 있는 독자</b>가 STEP 3 대신 따라 하는 길입니다.</p></div>
+    <div class="diagram">
+      <svg viewBox="0 0 1120 318" role="img" aria-label="Claude Code가 내 LiteLLM에 접속한다. LiteLLM은 기존 모델 요청은 기존 프로바이더로 보내고, 새로 더한 gemini-4 별칭 4개의 요청은 새로 켠 브리지로 보낸다. 브리지는 Copilot SDK와 GitHub Copilot을 거쳐 Gemini 4를 호출한다.">
+        <defs>
+          <marker id="ah3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker>
+          <marker id="ahb3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10z" class="ahb"/></marker>
+        </defs>
+        <rect class="box" x="8" y="40" width="190" height="136" rx="16"/>
+        <text class="t1" x="103" y="76" text-anchor="middle">④ Claude Code</text>
+        <text class="t2" x="103" y="104" text-anchor="middle">claude-gemini-litellm</text>
+        <text class="t2" x="103" y="126" text-anchor="middle">LITELLM_BASE_URL</text>
+        <text class="t2" x="103" y="148" text-anchor="middle">LITELLM_API_KEY</text>
+
+        <rect class="box" x="262" y="14" width="320" height="196" rx="16"/>
+        <text class="t1" x="422" y="44" text-anchor="middle">내 LiteLLM (기존)</text>
+        <rect class="box" x="282" y="58" width="280" height="46" rx="10" style="stroke-dasharray:6 5"/>
+        <text class="t2" x="422" y="86" text-anchor="middle">기존 모델 · 설정 — 그대로</text>
+        <rect class="brand" x="282" y="116" width="280" height="80" rx="10"/>
+        <text class="t1" x="422" y="146" text-anchor="middle">② + 별칭 4개 추가</text>
+        <text class="t2" x="422" y="168" text-anchor="middle">gemini-4-argon … neon</text>
+        <text class="t2" x="422" y="188" text-anchor="middle">헤더 전달은 이 4개에만</text>
+
+        <path class="line" d="M198 108 L260 108" marker-end="url(#ah3)"/>
+        <text class="t3" x="229" y="90" text-anchor="middle">Messages</text>
+        <text class="t3" x="229" y="132" text-anchor="middle">API</text>
+
+        <path class="dash" d="M562 156 L644 156" marker-end="url(#ahb3)"/>
+        <text class="t3b" x="603" y="138" text-anchor="middle">api_base</text>
+        <text class="t3b" x="603" y="180" text-anchor="middle">+ 토큰</text>
+
+        <rect class="brand" x="646" y="92" width="200" height="130" rx="16"/>
+        <text class="t1" x="746" y="126" text-anchor="middle">① 브리지</text>
+        <text class="t2" x="746" y="152" text-anchor="middle">새로 켜는 것</text>
+        <text class="t2" x="746" y="174" text-anchor="middle">npm run bridge</text>
+        <text class="t2" x="746" y="196" text-anchor="middle">127.0.0.1:4142 · 토큰</text>
+
+        <path class="line" d="M846 156 L908 156" marker-end="url(#ah3)"/>
+        <text class="t3" x="877" y="138" text-anchor="middle">SDK</text>
+
+        <rect class="box" x="910" y="92" width="202" height="130" rx="16"/>
+        <text class="t1" x="1011" y="126" text-anchor="middle">Copilot SDK</text>
+        <text class="t2" x="1011" y="152" text-anchor="middle">→ GitHub Copilot</text>
+        <text class="tg" x="1011" y="182" text-anchor="middle">→ Gemini 4 · 4종</text>
+
+        <path class="line" d="M422 210 L422 246" marker-end="url(#ah3)"/>
+        <rect class="box" x="262" y="248" width="320" height="52" rx="12" style="stroke-dasharray:6 5"/>
+        <text class="t2" x="422" y="272" text-anchor="middle">기존 프로바이더 (그대로)</text>
+        <text class="t3" x="422" y="291" text-anchor="middle">Databricks · Azure · Anthropic …</text>
+
+        <text class="t3b" x="646" y="262">보라색 = 이 절에서 더하거나 켜는 것</text>
+        <text class="t3" x="646" y="284">① 브리지를 켠다 → ② 내 LiteLLM에 모델을 더한다</text>
+        <text class="t3" x="646" y="306">④ Claude Code에 주소·키를 알려 준다 (③ = LiteLLM 재시작)</text>
+      </svg>
+    </div>
+
+    <h3>① 브리지를 포트와 토큰을 정해서 켜기</h3>
+    <p><code>gemini-litellm up</code> 이 켜는 브리지는 켤 때마다 새 토큰을 받는데, 이미 떠 있는 내 LiteLLM은 그 토큰을 알 수 없습니다. 그래서 <b>포트와 토큰을 직접 정해</b> 브리지를 켭니다. 토큰은 처음 한 번만 만들고, 브리지를 다시 켤 때는 같은 값을 <code>export BRIDGE_API_KEY=…</code> 로 쓰면 LiteLLM 설정을 고칠 일이 없습니다.</p>
+    <div class="code"><span class="label">터미널 A — 브리지 (계속 켜 두는 터미널)</span><pre><code>export BRIDGE_API_KEY=$(openssl rand -hex 24)   <span class="c"># 브리지 토큰 만들기 (처음 한 번만)</span>
+echo "$BRIDGE_API_KEY"        <span class="c"># 이 값을 ②·③ 에서 LiteLLM에 알려 줍니다 — 따로 적어 두세요</span>
+unset COPILOT_CLI_PATH        <span class="c"># Copilot CLI 세션 안에서 열었다면</span>
+PORT=4142 npm run bridge      <span class="c"># 브리지 시작 · 끌 때는 Ctrl-C</span></code></pre></div>
+    <div class="code"><span class="label">터미널 B</span><pre><code>curl -s http://127.0.0.1:4142/health   <span class="c"># "ok":true 가 보이면 떠 있는 것 (토큰 없이도 답합니다)</span></code></pre></div>
+    <div class="callout ok"><b class="t">이렇게 되면 성공</b>
+      <ul><li>터미널 A에 <code>{"event":"bridge.started","address":"http://127.0.0.1:4142", …}</code> 한 줄이 나옵니다.</li>
+      <li>터미널 B의 <code>curl</code> 이 <code>"ok":true</code> 를 돌려줍니다.</li></ul></div>
+    <div class="callout tip"><b class="t">백그라운드로 두려면</b>
+      <p><code>PORT=4142 nohup npm run bridge &gt; /tmp/gemini-bridge.log 2&gt;&amp;1 &amp;</code> 로 켜고 <code>kill</code> 로 끕니다. 부팅 때 자동으로 켜려면 같은 명령을 launchd · systemd · pm2 같은 프로세스 관리자에 등록하세요(이 가이드는 검증하지 않았습니다).</p></div>
+
+    <h3>② 내 LiteLLM에 모델 4개 더하기</h3>
+    <p>기존 모델과 설정은 그대로 두고 <b>덧붙입니다</b>. <code>examples/litellm-gemini.yaml</code> 과 같은 내용이고, 브리지 주소를 ①의 고정 주소로 적은 것과 헤더 전달을 이 4개 모델에만 켠 것이 다릅니다. 모델을 설정 파일로 관리하면 <b>A</b>, UI · API(DB)로 관리하면 <b>B</b> 로 모델을 더하고, 헤더 전달 설정 <b>C</b> 는 둘 다 합니다.</p>
+    <p><b>A. 설정 파일(<code>config.yaml</code>)로 모델을 관리한다면</b></p>
+    <div class="code"><span class="label">config.yaml 에 덧붙일 것 — 모델</span><pre><code>model_list:
+  <span class="c"># ... 기존 모델은 그대로 두고, 아래 4개를 덧붙입니다 ...</span>
+  - model_name: gemini-4-argon                    <span class="c"># Claude Code가 부르는 별칭</span>
+    litellm_params:
+      model: anthropic/gemini-4-argon             <span class="c"># 브리지로 보낼 때의 모델 ID</span>
+      api_base: http://127.0.0.1:4142             <span class="c"># 브리지 주소 (/v1 은 붙이지 않습니다)</span>
+      extra_headers:
+        x-api-key: os.environ/GHCP_BRIDGE_TOKEN   <span class="c"># 브리지 토큰은 api_key 가 아닌 헤더로</span>
+    model_info: &amp;effort_passthrough               <span class="c"># 없으면 effort 가 버려짐</span>
+      supports_adaptive_thinking: true
+      supports_xhigh_reasoning_effort: true
+  - model_name: gemini-4-carbon
+    litellm_params:
+      model: anthropic/gemini-4-carbon
+      api_base: http://127.0.0.1:4142
+      extra_headers:
+        x-api-key: os.environ/GHCP_BRIDGE_TOKEN
+    model_info: *effort_passthrough
+  - model_name: gemini-4-hydrogen
+    litellm_params:
+      model: anthropic/gemini-4-hydrogen
+      api_base: http://127.0.0.1:4142
+      extra_headers:
+        x-api-key: os.environ/GHCP_BRIDGE_TOKEN
+    model_info: *effort_passthrough
+  - model_name: gemini-4-neon
+    litellm_params:
+      model: anthropic/gemini-4-neon
+      api_base: http://127.0.0.1:4142
+      extra_headers:
+        x-api-key: os.environ/GHCP_BRIDGE_TOKEN
+    model_info: *effort_passthrough</code></pre></div>
+
+    <p><b>B. UI · API(DB)로 모델을 관리한다면</b> (<code>STORE_MODEL_IN_DB</code>) — 같은 값을 <code>/model/new</code> API로 넣습니다. <code>api_key</code> 는 비웁니다. 단 <b>DB에 저장된 모델은 <code>extra_headers</code> 안의 <code>os.environ/…</code> 를 치환하지 않으므로</b>(1.111.0 에서 확인) 토큰 값을 그대로 넣어야 하고, 그 토큰은 LiteLLM의 DB에 저장됩니다. UI의 모델 추가 화면에서 넣을 때도 같은 값을 쓰지만, UI는 확인하지 않았습니다.</p>
+    <div class="code"><span class="label">터미널 B — 모델 4개를 API로 더하기</span><pre><code>export LITELLM_BASE_URL=http://127.0.0.1:4000     <span class="c"># 내 LiteLLM 주소</span>
+ADMIN_KEY=sk-...  BRIDGE_API_KEY=...              <span class="c"># 관리자(마스터) 키 · ①의 토큰</span>
+BRIDGE_URL=http://127.0.0.1:4142                  <span class="c"># Docker 안이면 host.docker.internal</span>
+for id in gemini-4-argon gemini-4-carbon gemini-4-hydrogen gemini-4-neon; do
+  curl -s -o /dev/null -w "$id %{http_code}\n" "$LITELLM_BASE_URL/model/new" -H "Authorization: Bearer $ADMIN_KEY" -H "content-type: application/json" -d @- &lt;&lt;EOF
+{"model_name": "$id",
+ "litellm_params": {"model": "anthropic/$id", "api_base": "$BRIDGE_URL",
+                    "extra_headers": {"x-api-key": "$BRIDGE_API_KEY"}},
+ "model_info": {"supports_adaptive_thinking": true, "supports_xhigh_reasoning_effort": true}}
+EOF
+done</code></pre></div>
+    <p><small>각 줄이 <code>gemini-4-… 200</code> 이면 모델이 더해진 것입니다(바로 적용되고 LiteLLM을 다시 시작하지 않아도 됩니다).</small></p>
+
+    <p><b>C. 헤더 전달 설정 (A · B 공통)</b> — 모델을 어떻게 더했든 <code>config.yaml</code> 에 덧붙입니다.</p>
+    <div class="code"><span class="label">config.yaml 에 덧붙일 것 — 헤더 전달</span><pre><code>litellm_settings:                                 <span class="c"># 이미 있으면 그 안에 추가</span>
+  model_group_settings:
+    forward_client_headers_to_llm_api:            <span class="c"># 이 4개에만 헤더 전달</span>
+      - gemini-4-argon
+      - gemini-4-carbon
+      - gemini-4-hydrogen
+      - gemini-4-neon</code></pre></div>
+    <ul class="plain">
+      <li><b><code>api_base</code></b> 는 브리지 주소입니다. 내 LiteLLM이 Docker 안이면 <code>127.0.0.1</code> 이 컨테이너 자신이라 닿지 않습니다(③).</li>
+      <li>A 에서 쓰는 <b><code>GHCP_BRIDGE_TOKEN</code></b> 은 LiteLLM 프로세스의 환경 변수로 ①의 토큰을 넘깁니다(③). 설정 파일에 토큰을 적지 않아도 됩니다.</li>
+      <li><b><code>model_group_settings</code></b> 는 <code>x-claude-code-session-id</code> · <code>x-claude-code-agent-id</code> 헤더를 브리지까지 전달합니다. 없으면 브리지가 대화와 서브에이전트를 구분하지 못해, 모든 요청을 한 대화처럼 한 번에 하나씩 처리합니다. UI로는 만들 수 없어 <code>config.yaml</code> 에 두며, DB 모델에도 적용됩니다(확인함).</li>
+      <li><b>왜 4개에만 켤까요?</b> 저장소의 예시 파일처럼 <code>general_settings.forward_client_headers_to_llm_api: true</code> 로 켜면 내 LiteLLM의 <b>모든 모델</b> 업스트림에 클라이언트가 보낸 <code>x-</code> 헤더가 전달됩니다(확인함: 기존 모델의 업스트림이 <code>x-claude-code-session-id</code> 를 받았습니다). 이미 전역으로 켜 둔 LiteLLM이면 그대로 두어도 동작하고, 이 설정을 모르는 오래된 LiteLLM은 전역 설정을 쓰세요(<a href="https://docs.litellm.ai/docs/proxy/forward_client_headers#enable-for-a-model-group">LiteLLM 문서</a>).</li>
+    </ul>
+    <div class="callout warn"><b class="t">이 4개 모델에 Anthropic 키가 닿으면 안 됩니다 — <code>api_key</code> 도, 환경 변수 <code>ANTHROPIC_API_KEY</code> 도</b>
+      <p>Claude Code가 보내는 토큰 수 계산 요청(<code>/v1/messages/count_tokens</code>)을 LiteLLM은 <code>anthropic/</code> 모델이면 Anthropic 방식으로 처리하며, 키는 배포의 <code>api_key</code>, 없으면 <b>LiteLLM 환경의 <code>ANTHROPIC_API_KEY</code></b> 를 씁니다. 진짜 Claude 모델도 쓰는 LiteLLM이라면 그 변수가 있을 수 있습니다. (모델 호출 자체는 <code>extra_headers</code> 의 토큰이 우선해서 정상입니다.)</p>
+      <ul>
+        <li><b>LiteLLM 1.97.0</b> (이 저장소 고정 버전)은 <code>api.anthropic.com</code> 으로 보냅니다 — <b>대화 전체와 그 키</b>가 함께. 키가 있을 때 <code>api.anthropic.com:443</code> 으로 연결을 시도하는 것을 확인했습니다(실제 전송은 막고 관찰).</li>
+        <li><b>LiteLLM 1.111.0</b> (Docker <code>main-stable</code>, 2026-11-25)은 배포의 <code>api_base</code>, 곧 브리지로 보냅니다. Anthropic으로 나가지는 않지만 그 키가 브리지로 전달되고 <code>401</code> 이 납니다.</li>
+        <li>키가 없으면 1.97.0 은 LiteLLM 안에서 추정값으로 답하고 1.111.0 은 <code>401</code> 로 답합니다. 어느 쪽이든 Claude Code는 자체 추정으로 계속 동작합니다(<code>/context</code> 로 확인).</li>
+      </ul>
+      <p><b>확인</b> <code>docker exec &lt;컨테이너&gt; printenv ANTHROPIC_API_KEY</code> (직접 실행이면 <code>env | grep ANTHROPIC</code>), compose · <code>.env</code> · 설정의 <code>environment_variables</code>.<br>
+      <b>조치</b> 변수 이름을 바꾸고(예 <code>MY_ANTHROPIC_KEY</code>) 내 Claude 배포에 <code>api_key: os.environ/MY_ANTHROPIC_KEY</code> 를 명시한 뒤 LiteLLM을 다시 시작합니다. 바꿀 수 없다면 이 저장소의 게이트웨이를 <code>gemini-litellm up --port 4100</code> 으로 따로 켜서 쓰세요(이쪽은 <code>ANTHROPIC_</code> 환경 변수를 비우고 시작합니다).</p></div>
+    <div class="callout tip"><b class="t">같은 이름의 모델이 이미 있다면</b>
+      <p>LiteLLM은 <code>model_name</code> 이 같은 항목을 한 그룹으로 묶어 번갈아 호출합니다. 내 LiteLLM에 <code>gemini-4-…</code> 라는 이름이 이미 있으면 별칭만 바꾸세요(예 <code>ghcp-gemini-4-neon</code>). <code>model: anthropic/gemini-4-neon</code> 은 그대로 두고, <code>model_group_settings</code> 목록에도 새 이름을 적고, Claude Code에서는 <code>--litellm-model ghcp-gemini-4-neon</code> 으로 고릅니다(확인함).</p></div>
+
+    <h3>③ 내 LiteLLM 다시 시작</h3>
+    <p>LiteLLM은 설정 파일과 환경 변수를 <b>시작할 때 한 번</b> 읽습니다. <code>config.yaml</code> 을 고쳤으니 다시 시작하세요. A 는 ①의 토큰을 환경 변수 <code>GHCP_BRIDGE_TOKEN</code> 으로 함께 넘깁니다(B 는 토큰이 DB에 들어 있어 필요 없습니다).</p>
+    <div class="code"><span class="label">직접 실행하는 LiteLLM</span><pre><code>GHCP_BRIDGE_TOKEN=&lt;①의 토큰&gt; litellm --config config.yaml --port 4000</code></pre></div>
+    <div class="callout tip"><b class="t">LiteLLM이 Docker 안에 있다면</b>
+      <ul>
+        <li>컨테이너 안의 <code>127.0.0.1</code> 은 컨테이너 자신입니다. ②의 <code>api_base</code> 를 <code>http://host.docker.internal:4142</code> 로 적으세요. 호스트의 <code>127.0.0.1</code> 에만 열린 브리지에 닿는 것을 macOS의 Colima 에서 확인했습니다(Docker Desktop도 같은 이름을 제공하지만 확인하지 않았습니다).</li>
+        <li><code>GHCP_BRIDGE_TOKEN</code> 은 <code>docker run -e GHCP_BRIDGE_TOKEN=…</code> 나 compose의 <code>environment:</code> 로 넘깁니다. 환경 변수가 바뀌면 <code>docker restart</code> 가 아니라 컨테이너를 다시 만드세요(<code>docker compose up -d</code>).</li>
+        <li>Linux의 Docker는 <code>host.docker.internal</code> 이 기본으로 없고 호스트의 <code>127.0.0.1</code> 에도 닿지 않아 추가 설정이 필요합니다(검증하지 않음).</li>
+      </ul></div>
+
+    <h3>④ Claude Code를 내 LiteLLM에 연결</h3>
+    <p>런처는 주소를 <code>LITELLM_BASE_URL</code>, 키를 <code>LITELLM_API_KEY</code> 에서 읽습니다. 터미널에 한 번 <code>export</code> 해 두면 STEP 4~9 의 명령을 그대로 쓸 수 있습니다.</p>
+    <div class="code"><span class="label">터미널 B</span><pre><code>export LITELLM_BASE_URL=http://127.0.0.1:4000   <span class="c"># 내 LiteLLM 주소 (/v1 없이)</span>
+export LITELLM_API_KEY=sk-...                   <span class="c"># 내 LiteLLM에서 받은 키</span>
+gemini-doctor                                   <span class="c"># STEP 2 점검 (--litellm 없이)</span>
+claude-gemini-litellm --litellm-model gemini-4-hydrogen -p "한국의 수도는 어디인가요? 한 단어로만 답해줘."</code></pre></div>
+    <ul class="plain">
+      <li>다른 서버의 LiteLLM이면 <code>LITELLM_BASE_URL</code> 에 <code>https://litellm.example.com</code> 처럼 적습니다(런처는 <code>http</code> · <code>https</code> 를 모두 받고, 끝에 <code>/v1</code> 을 붙이면 거절합니다).</li>
+      <li><b><code>LITELLM_API_KEY</code> 는 꼭 직접 지정하세요.</b> 주소가 <code>127.0.0.1</code> · <code>localhost</code> 인데 키를 비워 두면 런처가 이 저장소의 <code>.runtime/litellm-master-key</code> 를 읽어, 내 LiteLLM에서 <code>LiteLLM rejected the key.</code> 가 납니다(DB 없이 마스터 키만 쓰는 LiteLLM은 다른 키에 <code>400 No connected db.</code> 로 답해서 <code>LiteLLM answered 400 to GET /v1/models.</code> 가 납니다).</li>
+      <li><b>마스터 키 대신 이 4개 별칭만 허용한 가상 키</b>를 쓰세요(<code>POST /key/generate</code> 의 <code>"models": ["gemini-4-argon", …]</code>). 가상 키로 확인했습니다: <code>/v1/models</code> 에는 허용한 별칭만 보이고, 허용하지 않은 별칭을 고르면 런처가 <code>LiteLLM does not serve …</code> 로 알려 줍니다.</li>
+      <li>대화형으로 열면 런처가 LiteLLM 키가 든 설정 파일(권한 600)을 <code>.runtime/settings/</code> 에 남깁니다. 다 쓴 뒤 <code>gemini-litellm down</code> 을 실행하면 그 파일만 지웁니다. 이 저장소가 켠 게이트웨이가 없으면 두 줄 모두 <code>was not running</code> 이라고만 나오고, 내 LiteLLM은 건드리지 않습니다.</li>
+    </ul>
+    <div class="callout ok"><b class="t">이렇게 보이면 성공</b>
+      <ul>
+        <li><code>curl -s "$LITELLM_BASE_URL/v1/models" -H "Authorization: Bearer $LITELLM_API_KEY"</code> 에 <code>gemini-4-argon</code> … <code>gemini-4-neon</code> 이 보입니다(가상 키면 허용한 것만).</li>
+        <li><code>-p</code> 호출이 <b>서울</b> 같은 답을 냅니다. 노란 <code>Claude Code doesn't recognize the model…</code> 안내는 STEP 4 와 같은 <b>정상 안내</b>입니다.</li>
+        <li>터미널 A(브리지)에 <code>"event":"bridge.turn_completed"</code> 줄이 찍히고 <code>requestedModel</code> 과 <code>model</code> 이 같습니다 → 요청이 내 LiteLLM을 지나 그 Gemini 4 모델이 처리했습니다.</li>
+      </ul></div>
+    <div class="callout tip"><b class="t">여기까지 되면 STEP 4 로 이어가세요</b>
+      <p>④에서 첫 호출을 이미 해 봤으니 STEP 4 는 <b>“4개 모델에 같은 질문 던져 보기”</b>부터 하면 됩니다. <code>LITELLM_BASE_URL</code> · <code>LITELLM_API_KEY</code> 를 <code>export</code> 한 같은 터미널에서 STEP 4~9 의 명령을 그대로 쓰세요(STEP 4 의 두 명령이 그대로 동작하는 것을 확인했습니다).</p></div>
+    <p><small>STEP 6 의 <code>gemini-litellm turns</code> · <code>logs</code> 는 이 저장소가 켠 게이트웨이용이라 여기서는 쓸 수 없습니다. 요청 로그는 내 LiteLLM에서(예 <code>docker logs</code>), 브리지가 처리한 턴은 터미널 A에서 봅니다. 막히면 <a href="#trouble">문제 해결</a> 표의 <code>Invalid bridge credential</code> · <code>Cannot connect to host</code> 항목을 보세요.</small></p>
+    <div class="callout warn"><b class="t">내 LiteLLM이 다른 서버에 있다면</b>
+      <p>브리지는 기본으로 <code>127.0.0.1</code> 에만 열립니다(<code>ALLOW_NON_LOOPBACK=1</code> 없이는 다른 주소로 열리지 않습니다). 다른 서버의 LiteLLM이 닿으려면 브리지를 <b>그 서버에서</b> 실행하세요(그 서버에서 <code>copilot login</code>). 알아 둘 점: 브리지는 <b>실행한 계정의 Copilot</b> 으로 호출하므로, 그 LiteLLM을 쓰는 모든 사람의 요청이 그 한 계정의 사용량으로 잡힙니다. 이 구성은 검증하지 않았습니다.</p></div>
+    <p><small><b>확인한 범위.</b> 이 절은 LiteLLM 1.97.0(pip)과 1.111.0(Docker <code>main-stable</code>, 2026-11-25)에서 실제 Gemini 4 호출로 확인했습니다 — 설정 파일 모델, API로 더한 DB 모델, 가상 키. <code>npm run verify:litellm</code> 에는 포함되지 않았고, 다른 버전은 위 경고(토큰 수 계산)와 <code>model_group_settings</code> 지원 여부부터 확인하세요.</small></p>
+  </section>
+
   <section id="s4">
     <h2><span class="step-no">STEP 4</span>첫 호출 — 한 번 묻고 끝내기</h2>
     <p class="goal">print 모드(<code>-p</code>)로 질문 하나를 보내 Gemini 4가 답하는지 봅니다. 모델은 <code>--litellm-model</code> 로 고릅니다(LiteLLM 별칭 이름).</p>
@@ -473,7 +668,7 @@ done</code></pre></div>
     <h2><span class="step-no">STEP 5</span>대화형으로 시작</h2>
     <p class="goal">연습용 폴더를 만들고 Claude Code를 대화형으로 엽니다. 폴더는 <code>gemini-lab</code> 이 복사해 주고 git 기록까지 시작해 줍니다(나중에 <code>git diff</code> 로 변경을 보기 위해서).</p>
     <div class="code"><span class="label">터미널</span><pre><code>gemini-lab 01 &amp;&amp; cd /tmp/lab-01     <span class="c"># 연습 폴더 복사 + git 기록 시작</span>
-claude-gemini-litellm                  <span class="c"># 게이트웨이가 켜져 있어야 합니다 (STEP 3)</span></code></pre></div>
+claude-gemini-litellm                  <span class="c"># 게이트웨이가 켜져 있어야 합니다 (STEP 3 또는 내 LiteLLM 연결)</span></code></pre></div>
     <p>Claude Code를 <b>처음 쓰는 환경</b>이면 ①~③ 첫 실행 화면이 나옵니다. ④ 폴더 신뢰는 <b>새 폴더를 처음 열 때마다</b> 나옵니다. 이미 Claude Code를 써 왔다면 ④만 보일 수 있습니다.</p>
     <figure class="shot"><img src="{{img:first-theme}}" alt="첫 실행 1단계: 테마 선택"><figcaption><b>① 테마</b> — 아무거나 고르고 <kbd>Enter</kbd></figcaption></figure>
       <figure class="shot"><img src="{{img:first-security}}" alt="첫 실행 2단계: 보안 안내"><figcaption><b>② 보안 안내</b> — <kbd>Enter</kbd></figcaption></figure>
@@ -528,6 +723,8 @@ claude-gemini-litellm                  <span class="c"># 게이트웨이가 켜�
     </figure>
     <h3>실제로 어떤 모델이 답했는지 확인 — 두 가지 방법</h3>
     <p><code>/exit</code> 로 나온 뒤 <b>브리지가 기록한</b> 턴을 보거나, <b>LiteLLM이 기록한</b> 요청을 봅니다. 화면 표시와 별개로 경로를 확인하는 방법입니다.</p>
+    <div class="callout tip"><b class="t">내 LiteLLM에 연결했다면</b>
+      <p>아래 <code>gemini-litellm turns</code> · <code>logs</code> 는 이 저장소가 켠 게이트웨이용이라 <code>No bridge log yet</code> 같은 오류가 납니다. 같은 확인을 <b>터미널 A(브리지)의 <code>bridge.turn_completed</code> 줄</b>(<code>requestedModel</code> → <code>model</code>)과 <b>내 LiteLLM의 로그</b>(예 <code>docker logs</code>)로 하세요(<a href="#existing">기존 LiteLLM에 연결하기</a>).</p></div>
     <div class="code"><span class="label">터미널</span><pre><code>gemini-litellm turns     <span class="c"># 브리지 기록: 요청 모델 → 실제로 응답한 모델</span>
 gemini-litellm logs      <span class="c"># LiteLLM 기록: 요청마다 한 줄</span></code></pre></div>
     <figure class="shot">
@@ -590,6 +787,8 @@ gemini-litellm down     <span class="c"># 종료</span>
 gemini-litellm status</code></pre></div>
     <figure class="shot"><img src="{{img:status-running}}" alt="gemini-litellm status: LiteLLM running, Bridge running"><figcaption>켜져 있으면 <b>LiteLLM running</b> 과 <b>Bridge running</b> 이 ✓ 로 보입니다.</figcaption></figure>
       <figure class="shot"><img src="{{img:status-stopped}}" alt="gemini-litellm down 이후 LiteLLM stopped, Bridge stopped"><figcaption><code>gemini-litellm down</code> 뒤에는 둘 다 <b>stopped</b> 입니다.</figcaption></figure>
+    <div class="callout tip"><b class="t">내 LiteLLM에 연결해서 썼다면</b>
+      <p>터미널 A의 브리지는 <kbd>Ctrl</kbd>+<kbd>C</kbd> 로 끕니다. 내 LiteLLM은 그대로 두세요. 위 <code>gemini-litellm status</code> 는 이 저장소가 켠 게이트웨이만 보므로 <code>not installed</code> 나 <code>stopped</code> (✗)로 나와도 정상이고, <code>gemini-litellm down</code> 은 런처가 남긴 키가 든 설정 파일만 지웁니다(<a href="#existing">기존 LiteLLM에 연결하기</a>).</p></div>
     <div class="callout tip"><b class="t">연습용 폴더 지우기</b><p><code>rm -rf /tmp/lab-01 /tmp/lab-02</code></p></div>
   </section>
 
@@ -629,7 +828,7 @@ gemini-litellm status</code></pre></div>
         <li>모든 검사는 Claude Code 쪽 기록과 <b>브리지 로그</b>를 교차 확인합니다: 요청한 모델(LiteLLM 별칭), SDK가 실제로 응답한 모델, 실패한 요청 여부. 브리지는 LiteLLM 뒤에 있으므로, 브리지가 본 요청은 곧 <b>LiteLLM을 통과한 요청</b>입니다.</li>
         <li>검증에서 브리지가 집계한 토큰은 입력 {{verify:tokens-in}} / 출력 {{verify:tokens-out}} 입니다 (런처·대화형 케이스 제외). 이 호출은 GitHub Copilot 사용량을 소비합니다.</li>
         <li>다시 돌리려면 <code>npm run verify:litellm</code> (약 15분, Copilot 사용량 소비). 호출 없이 계획만 보려면 <code>npm run verify:litellm:plan</code>.</li>
-        <li><b>이 검증이 다루지 않는 것:</b> LiteLLM의 가상 키·예산·로드밸런싱 같은 게이트웨이 기능, 원격 게이트웨이, MCP 서버, 훅·플러그인·스킬, <code>/background</code>, 컨텍스트 한도에 가까운 긴 대화, 요청 한도(429/529) 복구, Linux·Windows, IDE 확장, WebFetch·WebSearch, 장시간 무인 실행, 모델 전환 뒤의 서브에이전트 동작.</li>
+        <li><b>이 검증이 다루지 않는 것:</b> LiteLLM의 가상 키·예산·로드밸런싱 같은 게이트웨이 기능, 원격 게이트웨이, MCP 서버, 훅·플러그인·스킬, <code>/background</code>, 컨텍스트 한도에 가까운 긴 대화, 요청 한도(429/529) 복구, Linux·Windows, IDE 확장, WebFetch·WebSearch, 장시간 무인 실행, 모델 전환 뒤의 서브에이전트 동작. (<a href="#existing">기존 LiteLLM에 연결하기</a>의 설정 파일·DB 모델·가상 키는 이 검증이 아니라 수동으로 한 번 확인한 것입니다.)</li>
         <li>표의 시간(초)은 그날의 관찰값이며 호출마다 달라집니다. 성능 비교가 아닙니다.</li>
       </ul>
     </details>
@@ -645,11 +844,14 @@ gemini-litellm status</code></pre></div>
           <tr><th scope="row"><code>Not signed in to GitHub Copilot</code></th><td>Copilot 로그인 없음</td><td><code>copilot login</code></td></tr>
           <tr><th scope="row"><code>gemini-doctor</code> 에서 모델이 ✗</th><td>계정 플랜·조직 정책에서 모델이 막힘, 또는 <code>policy</code> 가 <code>disabled</code></td><td>GitHub Copilot 설정에서 해당 모델을 켜거나 관리자에게 요청</td></tr>
           <tr><th scope="row"><code>LiteLLM is not installed</code></th><td>STEP 1의 <code>gemini-litellm setup</code> 을 아직 안 함 (또는 <code>.runtime/</code> 을 지움)</td><td><code>gemini-litellm setup</code></td></tr>
-          <tr><th scope="row"><code>Cannot reach LiteLLM at http://127.0.0.1:4000</code></th><td>게이트웨이가 꺼져 있음</td><td><code>gemini-litellm up</code> 후 <code>gemini-litellm status</code></td></tr>
-          <tr><th scope="row"><code>LiteLLM rejected the key</code></th><td><code>LITELLM_API_KEY</code> 가 이 게이트웨이의 키와 다름</td><td>환경 변수를 <code>unset LITELLM_API_KEY</code> 하면 이 노트북 게이트웨이는 <code>.runtime/litellm-master-key</code> 를 씁니다</td></tr>
+          <tr><th scope="row"><code>Cannot reach LiteLLM at http://127.0.0.1:4000</code></th><td>게이트웨이가 꺼져 있음. 내 LiteLLM에 연결하는 경우라면 <code>LITELLM_BASE_URL</code> 이 틀렸거나 그 LiteLLM이 꺼져 있음</td><td><code>gemini-litellm up</code> 후 <code>gemini-litellm status</code>. 내 LiteLLM이면 주소와 실행 여부를 확인(<code>gemini-litellm up</code> 은 이 저장소의 게이트웨이용 — <a href="#existing">기존 LiteLLM에 연결하기</a>)</td></tr>
+          <tr><th scope="row"><code>LiteLLM rejected the key</code> · <code>LiteLLM answered 400 to GET /v1/models</code></th><td><code>LITELLM_API_KEY</code> 가 이 게이트웨이의 키와 다름. 내 LiteLLM에 연결하면서 키를 비워 두면 런처가 이 저장소의 <code>.runtime/litellm-master-key</code> 를 읽음. DB 없이 마스터 키만 쓰는 LiteLLM은 다른 키에 <code>400 No connected db.</code> 로 답해 후자가 나옴</td><td>환경 변수를 <code>unset LITELLM_API_KEY</code> 하면 이 노트북 게이트웨이는 <code>.runtime/litellm-master-key</code> 를 씁니다. 내 LiteLLM이면 그 LiteLLM의 키를 <code>LITELLM_API_KEY</code> 로 지정</td></tr>
           <tr><th scope="row"><code>Port 4000 is already in use</code></th><td>다른 프로그램이 4000 번 포트를 씀</td><td><code>gemini-litellm up --port 4100</code>, Claude Code 쪽은 <code>--litellm-base-url http://127.0.0.1:4100</code></td></tr>
           <tr><th scope="row"><code>status</code> 의 Chain 이 <code>older bridge token</code></th><td>브리지만 다시 시작돼 LiteLLM이 옛 토큰을 들고 있음</td><td><code>gemini-litellm up</code> 이 LiteLLM을 다시 시작해 맞춥니다</td></tr>
-          <tr><th scope="row"><code>LiteLLM does not serve "gemini-4-…"</code></th><td>그 별칭이 게이트웨이 설정에 없음</td><td><code>gemini-litellm status</code> 의 Models 줄에 있는 별칭을 <code>--litellm-model</code> 로 지정</td></tr>
+          <tr><th scope="row"><code>LiteLLM does not serve "gemini-4-…"</code></th><td>그 별칭이 게이트웨이 설정에 없음. 가상 키라면 그 키가 별칭을 허용하지 않음</td><td><code>gemini-litellm status</code> 의 Models 줄에 있는 별칭을 <code>--litellm-model</code> 로 지정. 내 LiteLLM이면 런처가 알려 주는 목록에서 고르거나, 설정에 별칭을 더하고 키의 <code>models</code> 에 추가</td></tr>
+          <tr><th scope="row"><code>API Error: 401 … Invalid bridge credential.</code> (<a href="#existing">기존 LiteLLM</a>)</th><td>내 LiteLLM이 가진 <code>GHCP_BRIDGE_TOKEN</code> 이 브리지를 켤 때의 <code>BRIDGE_API_KEY</code> 와 다름. UI·API로 추가한 모델에 <code>os.environ/…</code> 가 그대로 적혀 있어도 같은 오류</td><td>두 값을 같게 맞추고 LiteLLM을 다시 시작(Docker는 컨테이너를 다시 만들기). UI·API로 추가한 모델은 <code>extra_headers</code> 의 <code>x-api-key</code> 에 토큰 값을 직접 적습니다</td></tr>
+          <tr><th scope="row"><code>API Error: 500 Cannot connect to host 127.0.0.1:4142 …</code> (<a href="#existing">기존 LiteLLM</a>)</th><td>내 LiteLLM이 브리지에 닿지 못함: 브리지가 꺼져 있거나 <code>api_base</code> 가 틀림. LiteLLM이 Docker 안이면 <code>127.0.0.1</code> 이 컨테이너 자신. Claude Code가 500을 여러 번 재시도해서 한참 멈춘 것처럼 보일 수 있음</td><td>터미널 A의 브리지와 <code>curl http://127.0.0.1:4142/health</code> 를 확인. Docker면 <code>api_base</code> 를 <code>http://host.docker.internal:4142</code> 로</td></tr>
+          <tr><th scope="row">LiteLLM 로그의 <code>POST /v1/messages/count_tokens … 401</code> (<code>No Anthropic API key is set …</code>)</th><td>새 LiteLLM(1.111.0 에서 확인)은 Gemini 별칭에 Anthropic 키가 없으면 토큰 수 계산에 401 로 답함. <code>api_key</code> 를 넣지 않은 구성에서는 정상</td><td>무시해도 됩니다. Claude Code가 자체 추정으로 계속 동작합니다. 없애려고 <code>api_key</code> 를 넣지 마세요 — 버전에 따라 대화가 Anthropic으로 나갑니다</td></tr>
           <tr><th scope="row"><code>COPILOT_CLI_PATH is set</code> 경고</th><td>Copilot CLI 세션 안에서 실행해 환경 변수가 상속됨</td><td>새 터미널을 열거나 <code>unset COPILOT_CLI_PATH</code></td></tr>
           <tr><th scope="row"><code>Claude Code default model is a Copilot model</code> 경고</th><td><code>/model</code> 에서 <kbd>Enter</kbd> 로 골라 기본값이 저장됨</td><td><code>~/.claude/settings.json</code> 에서 <code>"model"</code> 줄 삭제. 다음부터는 <kbd>s</kbd></td></tr>
           <tr><th scope="row"><code>Claude Code doesn't recognize the model "gemini-4-…"</code> 한 줄</th><td>Claude Code가 모르는 모델 이름이라 컨텍스트 창을 1M 토큰으로 가정한다는 안내(정상). Gemini 4의 실제 창과 같음</td><td>무시해도 됩니다. 숨기려면 <code>2&gt;/dev/null</code></td></tr>
@@ -671,9 +873,10 @@ gemini-litellm status</code></pre></div>
     <h2>한계와 범위</h2>
     <ul class="plain">
       <li><b>비공식 구성입니다.</b> Anthropic은 Claude가 아닌 모델을 게이트웨이로 연결하는 구성을, GitHub은 이 조합을 지원하지 않으며, 이 저장소의 LiteLLM 설정도 LiteLLM이 보증하는 구성이 아닙니다. 개인 실험·연구용으로 쓰세요.</li>
-      <li><b>LiteLLM은 이 노트북 안에서만 쓰는 구성</b>입니다(<code>127.0.0.1</code>). 다른 사람과 게이트웨이를 공유하려면 가상 키·네트워크 보안·로그 보관을 따로 설계해야 합니다. 이 가이드는 그 부분을 검증하지 않았습니다.</li>
+      <li><b>STEP 3 의 LiteLLM은 이 노트북 안에서만 쓰는 구성</b>입니다(<code>127.0.0.1</code>). 이미 쓰는 LiteLLM에 연결하는 방법은 <a href="#existing">따로 있습니다</a>. 다른 사람과 게이트웨이를 공유하려면 가상 키·네트워크 보안·로그 보관을 따로 설계해야 합니다. 이 가이드는 그 부분을 검증하지 않았습니다.</li>
+      <li><b>기존 LiteLLM 연결은 수동으로 확인한 범위</b>입니다: LiteLLM 1.97.0 · 1.111.0, 설정 파일 모델 · API로 더한 DB 모델 · 가상 키, 실제 Gemini 4 호출. <code>npm run verify:litellm</code> 에는 포함되지 않았고, UI 화면 · 원격 LiteLLM · 여럿이 공유하는 구성 · 다른 버전은 검증하지 않았습니다.</li>
       <li><b>금액·예산 기능은 의미가 없습니다.</b> Gemini 4는 GitHub Copilot 구독으로 처리되고, LiteLLM과 Claude Code는 이 모델들의 단가를 모릅니다. <code>/cost</code> 나 LiteLLM의 지출 집계 숫자를 믿지 마세요. 실제 사용량은 GitHub Copilot 쪽에서 봅니다.</li>
-      <li>Claude Code가 보내는 <b>토큰 수 사전 계산</b>(<code>count_tokens</code>) 요청은 LiteLLM이 Anthropic에 묻지 않고 <b>자체 추정값</b>으로 답합니다. 실제 Gemini 4 토큰 수와는 다를 수 있습니다.</li>
+      <li>Claude Code가 보내는 <b>토큰 수 사전 계산</b>(<code>count_tokens</code>) 요청은 LiteLLM이 Anthropic에 묻지 않고 <b>자체 추정값</b>으로 답합니다. 실제 Gemini 4 토큰 수와는 다를 수 있습니다. (이미 쓰는 LiteLLM에 연결하면 버전과 환경 변수에 따라 달라집니다 — <a href="#existing">기존 LiteLLM에 연결하기</a>의 경고를 보세요.)</li>
       <li>Claude Code의 <b>확장 사고(thinking) 블록은 표시되지 않습니다</b>. 대신 추론 강도(effort)가 전달됩니다.</li>
       <li><code>temperature</code>·<code>top_p</code>·<code>stop_sequences</code> 같은 샘플링 제어와 <code>cache_control</code> 표시는 적용되지 않습니다.</li>
       <li>WebSearch 처럼 Anthropic 서버에서 실행되는 기능은 쓸 수 없습니다.</li>
@@ -700,12 +903,21 @@ gemini-lab 01 &amp;&amp; cd /tmp/lab-01 &amp;&amp; claude-gemini-litellm        
 gemini-litellm turns                <span class="c"># 실제로 응답한 모델 확인</span>
 gemini-litellm logs                 <span class="c"># LiteLLM 요청 로그</span>
 gemini-litellm down                 <span class="c"># 다 쓰면 게이트웨이 종료</span></code></pre></div>
+    <div class="code"><span class="label">이미 LiteLLM이 있을 때 (STEP 1의 setup · STEP 3 대신)</span><pre><code>export BRIDGE_API_KEY=$(openssl rand -hex 24); echo "$BRIDGE_API_KEY"
+PORT=4142 npm run bridge            <span class="c"># 터미널 A: 브리지 (계속 켜 두기)</span>
+
+<span class="c"># 내 LiteLLM: 모델 4개 + model_group_settings 를 config.yaml 에 더하고,</span>
+<span class="c"># GHCP_BRIDGE_TOKEN=위의 토큰 을 넘겨 다시 시작</span>
+
+export LITELLM_BASE_URL=http://127.0.0.1:4000 LITELLM_API_KEY=sk-...   <span class="c"># 터미널 B</span>
+claude-gemini-litellm --litellm-model gemini-4-neon -p "안녕하세요"</code></pre></div>
     <div class="tablewrap">
     <table>
       <thead><tr><th>명령</th><th>하는 일</th></tr></thead>
       <tbody>
         <tr><td><code>gemini-litellm setup</code></td><td>LiteLLM을 <code>.runtime/</code> 에 설치(버전·해시 고정)하고 마스터 키를 만듭니다. 다시 실행해도 안전</td></tr>
-        <tr><td><code>gemini-litellm up</code> · <code>down</code></td><td>브리지와 LiteLLM 시작 · 종료 (<code>--port</code> 로 LiteLLM 포트 변경)</td></tr>
+        <tr><td><code>gemini-litellm up</code> · <code>down</code></td><td>브리지와 LiteLLM 시작 · 종료 (<code>--port</code> 로 LiteLLM 포트 변경). <code>down</code> 은 이 저장소가 켠 것과 런처가 남긴 설정 파일만 정리합니다</td></tr>
+        <tr><td><code>npm run bridge</code></td><td>브리지만 단독 실행 (<code>BRIDGE_API_KEY</code> 필수, <code>PORT</code> 기본 4142, <code>127.0.0.1</code> 에만 열림). 이미 쓰는 LiteLLM에 연결할 때 씁니다</td></tr>
         <tr><td><code>gemini-litellm status</code> · <code>turns</code> · <code>logs</code></td><td>상태(<code>--json</code> 지원) · 브리지가 기록한 턴별 요청/응답 모델 · LiteLLM 로그(<code>--follow</code>, <code>--all</code>)</td></tr>
         <tr><td><code>claude-gemini-litellm</code></td><td>게이트웨이를 거쳐 Gemini 4로 Claude Code 실행 (<code>--litellm-model</code>, <code>--litellm-base-url</code> 외에 <code>--effort</code>, <code>-p</code> 등 Claude Code 옵션을 그대로 사용)</td></tr>
         <tr><td><code>gemini-models</code> · <code>gemini-doctor</code></td><td>모델 목록 · 환경 점검 (<code>--json</code> 지원, <code>gemini-doctor --litellm</code> 은 LiteLLM 항목 포함)</td></tr>

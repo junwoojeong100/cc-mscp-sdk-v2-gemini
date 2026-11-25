@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 
 import { COMMANDS, LAB_PROMPT } from "../scripts/media/commands.mjs";
 import { TRACKS } from "../scripts/verify/tracks.mjs";
+import { LITELLM_VERSION } from "../src/litellm-runtime.mjs";
+import { PRIMARY_MODELS } from "../src/model-map.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (...parts) => fs.readFileSync(path.join(ROOT, ...parts), "utf8");
@@ -128,6 +130,88 @@ for (const track of Object.values(TRACKS)) {
     }
   });
 }
+
+// The section for a reader who already runs LiteLLM: guide/litellm.template.html, #existing.
+const litellmTemplate = read(TRACKS.litellm.template);
+const existingSection = () => {
+  const start = litellmTemplate.indexOf('<section id="existing">');
+  assert.ok(start >= 0, "the existing-LiteLLM section is missing");
+  return litellmTemplate.slice(start, litellmTemplate.indexOf("</section>", start));
+};
+// What the copy button gives: the markup gone, the entities decoded, the trailing comments dropped.
+const textOf = (html) => html.replace(/<[^>]+>/g, "").replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&").replace(/[ \t]+#[ \t].*$/gm, "");
+
+test("litellm guide: the existing-LiteLLM section replaces STEP 3, and every step where the two paths part ways points a reader who already has LiteLLM to it", () => {
+  const at = (id) => litellmTemplate.indexOf(`<section id="${id}">`);
+  assert.ok(at("s3") >= 0 && at("s3") < at("existing") && at("existing") < at("s4"), "it belongs between STEP 3 and STEP 4");
+  const toc = litellmTemplate.slice(litellmTemplate.indexOf('<nav class="toc"'), litellmTemplate.indexOf("</nav>"));
+  assert.ok(toc.includes('href="#existing"'), "the table of contents does not list it");
+  // Where a reader who runs this checkout's LiteLLM and one who already has their own do different things:
+  // the choice (summary, prep), the install (STEP 1), the check (STEP 2, doctor --litellm fails without the install),
+  // the start (STEP 3), the log commands (STEP 6, gemini-litellm turns/logs read this checkout's gateway) and the cleanup (STEP 9).
+  for (const id of ["summary", "prep", "s1", "s2", "s3", "s6", "s9"]) {
+    const section = litellmTemplate.slice(at(id), litellmTemplate.indexOf("</section>", at(id)));
+    assert.ok(section.includes('href="#existing"'), `${id} does not point a reader who already has LiteLLM to it`);
+  }
+  // And the other way: a reader who started this checkout's LiteLLM in STEP 3 is sent on to STEP 4.
+  assert.ok(existingSection().includes('href="#s4"'), "the section does not send a reader of STEP 3 on to STEP 4");
+});
+
+test("litellm guide: the config for an existing LiteLLM is the shipped one's four aliases, with the token as a header and the headers forwarded to those four only", () => {
+  const blocks = [...existingSection().matchAll(/<pre><code>([\s\S]*?)<\/code><\/pre>/g)].map((match) => textOf(match[1]));
+  // A: the models in the config file (and C: the header setting, the same file); B: the models through the API.
+  const yaml = blocks.filter((block) => /^(model_list|litellm_settings):/m.test(block)).join("\n");
+  const api = blocks.find((block) => block.includes("/model/new"));
+  assert.ok(yaml.includes("model_list:") && yaml.includes("litellm_settings:") && api, "a config block is missing");
+  const shipped = read("examples/litellm-gemini.yaml");
+  assert.deepEqual([...yaml.matchAll(/^\s*- model_name: (\S+)$/gm)].map((match) => match[1]), [...PRIMARY_MODELS]);
+  for (const id of PRIMARY_MODELS) assert.match(yaml, new RegExp(`^\\s*model: anthropic/${id}\\b`, "m"));
+  assert.equal([...yaml.matchAll(/^\s+x-api-key: os\.environ\/GHCP_BRIDGE_TOKEN\b/gm)].length, PRIMARY_MODELS.length);
+  // One bridge, one fixed address.
+  assert.deepEqual([...new Set([...yaml.matchAll(/^\s+api_base: (\S+)/gm)].map((match) => match[1]))], ["http://127.0.0.1:4142"]);
+  // Same reason as the shipped file: with an api_key LiteLLM 1.97.0 posts the conversation and the key to api.anthropic.com.
+  assert.doesNotMatch(yaml, /^\s*api_key:/m);
+  assert.doesNotMatch(yaml, /forward_llm_provider_auth_headers/);
+  // The headers go to the four aliases, not to every model of the LiteLLM the reader already runs.
+  assert.doesNotMatch(yaml, /^\s*forward_client_headers_to_llm_api: true/m);
+  const forwarded = yaml.split("forward_client_headers_to_llm_api:")[1] ?? "";
+  assert.deepEqual([...forwarded.matchAll(/^\s+- (\S+)$/gm)].map((match) => match[1]), [...PRIMARY_MODELS]);
+  // Whatever the shipped config tells LiteLLM about the models, this one does too.
+  const flags = [...shipped.matchAll(/^\s+(supports_\w+): true$/gm)].map((match) => match[1]);
+  assert.ok(flags.length > 0);
+  for (const flag of flags) assert.match(yaml, new RegExp(`^\\s+${flag}: true$`, "m"), flag);
+
+  // The same models through the API: a model kept in the database takes the token as a value, not as os.environ/.
+  assert.deepEqual(api.match(/^for id in (.+); do$/m)?.[1].split(" "), [...PRIMARY_MODELS]);
+  assert.match(api, /BRIDGE_URL=http:\/\/127\.0\.0\.1:4142\b/);
+  assert.match(api, /"model": "anthropic\/\$id"/);
+  assert.match(api, /"x-api-key": "\$BRIDGE_API_KEY"/);
+  assert.doesNotMatch(api, /"api_key"/);
+  for (const flag of flags) assert.match(api, new RegExp(`"${flag}": true`), flag);
+});
+
+test("litellm guide: what the existing-LiteLLM section tells you to run and set exists", () => {
+  const section = existingSection();
+  const server = read("src/server.mjs");
+  assert.equal(packageScripts.bridge, "node src/server.mjs");
+  assert.ok(section.includes("npm run bridge"));
+  assert.match(server, /process\.env\.BRIDGE_API_KEY/);
+  assert.match(server, /readPositiveIntegerEnv\("PORT", 4142\)/);
+  assert.match(server, /process\.env\.ALLOW_NON_LOOPBACK/);
+  const launcher = read("bin/claude-gemini-litellm");
+  for (const name of ["LITELLM_BASE_URL", "LITELLM_API_KEY"]) assert.ok(section.includes(name) && launcher.includes(name), name);
+  // The key it warns about: the launcher falls back to this checkout's own master key on a local address.
+  assert.match(launcher, /http:\/\/127\.0\.0\.1:\*\|http:\/\/localhost:\*\)[\s\S]*?litellm-master-key/);
+  // The launcher messages the guide quotes.
+  for (const message of ["LiteLLM rejected the key", "LiteLLM does not serve", "to GET /v1/models"]) assert.ok(read("src/write-litellm-settings.mjs").includes(message), message);
+});
+
+test("litellm guide: the existing-LiteLLM section names the pinned LiteLLM version and warns about the Anthropic key", () => {
+  const section = existingSection();
+  // Its claims about count_tokens were checked on that version. A new pin needs them checked again.
+  assert.ok(section.includes(`LiteLLM ${LITELLM_VERSION}`), `re-check the section against LiteLLM ${LITELLM_VERSION}, then name that version in it`);
+  assert.ok(section.includes("ANTHROPIC_API_KEY") && section.includes("count_tokens"));
+});
 
 test("the Claude Code version gemini-doctor calls verified is the one the published verification ran on", () => {
   const doctor = read("src/doctor.mjs");

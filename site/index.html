@@ -49,6 +49,7 @@ main h2:not(:first-child){margin-top:40px}
 .flow li:not(:last-child)::after{content:"→";position:absolute;right:-18px;top:0;color:var(--muted)}
 .card p{margin:.4em 0;color:var(--muted)}
 .card p.cmd{color:var(--fg);margin-bottom:14px}
+.card p a{color:var(--brand);text-underline-offset:3px}
 .btn{display:inline-flex;align-items:center;margin-top:14px;padding:11px 18px;border-radius:12px;font-weight:700;font-size:15px;text-decoration:none;background:var(--brand);color:var(--brand-fg);border:1px solid transparent}
 .btn:hover{filter:brightness(1.08)}
 .btn:focus-visible{outline:3px solid var(--tip);outline-offset:2px}
@@ -94,6 +95,7 @@ main h2:not(:first-child){margin-top:40px}
       <h3>LiteLLM 게이트웨이를 앞에 두는 경로</h3>
       <ol class="flow"><li>Claude Code</li><li>LiteLLM</li><li>브리지</li><li>Copilot SDK</li><li>Gemini 4</li></ol>
       <p>게이트웨이를 설치하고 켜는 단계가 더 있습니다.</p>
+      <p>이미 쓰는 LiteLLM이 있다면 <a href="guide-litellm.html#existing">새로 설치하지 않고 연결하는 방법</a>이 있습니다.</p>
       <p class="cmd"><code>gemini-litellm up</code> 후 <code>claude-gemini-litellm</code></p>
       <div class="actions">
         <a class="btn" href="guide-litellm.html">LiteLLM 가이드 열기</a>
